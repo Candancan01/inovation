@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mercadinho Bom Preço — Entrar no estoque</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,600;0,700;1,500;1,600&family=Nunito:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#FAF3E4;
+    --card:#FFFDF8;
+    --forest:#1F4D3A;
+    --forest-dark:#163A2B;
+    --tomato:#E8543A;
+    --mustard:#F0AD3D;
+    --charcoal:#2B2620;
+    --muted:#867C69;
+    --line:#E7DFCC;
+    --focus:#2C6B4F;
+    --text-scale:1;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+
+  html{ font-size:calc(16px * var(--text-scale)); }
+
+  body{
+    font-family:'Nunito', sans-serif;
+    color:var(--charcoal);
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+    background:var(--cream);
+    overflow-x:hidden;
+  }
+
+  /* ===== Soft decorative backdrop ===== */
+  .backdrop{
+    position:fixed;
+    inset:0;
+    z-index:0;
+    pointer-events:none;
+    overflow:hidden;
+  }
+  .backdrop::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:radial-gradient(circle at 15% 12%, rgba(31,77,58,0.06), transparent 40%),
+               radial-gradient(circle at 88% 82%, rgba(232,84,58,0.06), transparent 42%);
+  }
+
+  .float-item{
+    position:absolute;
+    opacity:0.9;
+    animation:floaty 6s ease-in-out infinite;
+  }
+  .float-item svg{ filter:drop-shadow(0 6px 10px rgba(43,38,32,0.1)); }
+  .fi-apple{ top:8%; left:6%; width:56px; animation-delay:0s; }
+  .fi-bread{ bottom:10%; left:8%; width:64px; animation-delay:1.2s; }
+  .fi-carrot{ top:12%; right:6%; width:52px; animation-delay:0.6s; }
+  .fi-milk{ bottom:8%; right:7%; width:44px; animation-delay:1.8s; }
+
+  @keyframes floaty{
+    0%,100%{ transform:translateY(0); }
+    50%{ transform:translateY(-10px); }
+  }
+
+  @media (max-width:900px){
+    .float-item{ display:none; }
+  }
+
+  /* ===== Top bar ===== */
+  header{
+    position:relative;
+    z-index:2;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:1rem;
+    padding:1.5rem 1.75rem;
+    flex-wrap:wrap;
+  }
+
+  .brand{ display:flex; align-items:center; gap:0.75rem; }
+
+  .brand-icon{
+    width:2.75rem; height:2.75rem;
+    background:var(--mustard);
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif;
+    font-weight:700;
+    font-size:1.2rem;
+    color:var(--forest-dark);
+    flex-shrink:0;
+    box-shadow:0 3px 0 rgba(0,0,0,0.12);
+  }
+
+  .brand-name{ font-weight:800; font-size:1.1rem; line-height:1.2; }
+  .brand-sub{ font-size:0.88rem; color:var(--muted); font-weight:700; }
+
+  .top-controls{ display:flex; align-items:center; gap:0.7rem; flex-wrap:wrap; }
+
+  .open-tag{
+    display:flex; align-items:center; gap:0.45rem;
+    background:var(--forest);
+    color:var(--cream);
+    padding:0.4rem 0.85rem;
+    border-radius:999px;
+    font-family:'Space Mono', monospace;
+    font-size:0.72rem;
+    letter-spacing:0.03em;
+  }
+  .open-dot{
+    width:6px; height:6px; border-radius:50%;
+    background:#8CFF7A;
+    animation:pulse 1.8s infinite;
+  }
+  @keyframes pulse{
+    0%{ box-shadow:0 0 0 0 rgba(140,255,122,0.55); }
+    70%{ box-shadow:0 0 0 7px rgba(140,255,122,0); }
+    100%{ box-shadow:0 0 0 0 rgba(140,255,122,0); }
+  }
+
+  .text-size{
+    display:flex; align-items:center; gap:0.4rem;
+    background:var(--card);
+    border:2px solid var(--line);
+    border-radius:999px;
+    padding:0.3rem;
+  }
+  .text-size span{ font-size:0.8rem; font-weight:700; color:var(--muted); padding:0 0.3rem; }
+  .text-btn{
+    width:2.4rem; height:2.4rem;
+    border:none;
+    background:var(--cream);
+    border-radius:50%;
+    font-family:'Nunito', sans-serif;
+    font-weight:800;
+    font-size:0.95rem;
+    color:var(--forest-dark);
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:background .15s ease, transform .1s ease;
+  }
+  .text-btn:hover{ background:#EFE7D4; }
+  .text-btn:active{ transform:scale(0.92); }
+
+  /* ===== Main ===== */
+  main{
+    position:relative;
+    z-index:2;
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:1.25rem 1.25rem 3rem;
+  }
+
+  /* ===== Receipt-style card ===== */
+  .card{
+    position:relative;
+    width:100%;
+    max-width:27rem;
+    background:var(--card);
+    padding:2.6rem 2.25rem 2.1rem;
+    box-shadow:0 1.75rem 3.5rem rgba(31,77,58,0.14);
+    animation:riseIn .5s ease both;
+  }
+
+  .card::before, .card::after{
+    content:"";
+    position:absolute;
+    left:0; right:0;
+    height:0.9rem;
+    background:
+      linear-gradient(135deg, var(--cream) 50%, transparent 50%) top left,
+      linear-gradient(-135deg, var(--cream) 50%, transparent 50%) top right;
+    background-size:1.1rem 1.1rem;
+    background-repeat:repeat-x;
+  }
+  .card::before{ top:-1px; }
+  .card::after{ bottom:-1px; transform:rotate(180deg); }
+
+  @keyframes riseIn{
+    from{ opacity:0; transform:translateY(14px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+
+  .card-head{ text-align:center; margin-bottom:1.6rem; }
+
+  .card-icon{
+    width:4.2rem; height:4.2rem;
+    background:#EAF3EC;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    margin:0 auto 1rem;
+  }
+
+  h1{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:600;
+    font-size:1.7rem;
+    margin-bottom:0.4rem;
+  }
+
+  .subtitle{
+    color:var(--muted);
+    font-size:1rem;
+    font-weight:700;
+    line-height:1.5;
+  }
+
+  .divider{
+    border:none;
+    border-top:2px dashed var(--line);
+    margin:1.6rem 0;
+  }
+
+  form{ display:flex; flex-direction:column; gap:1.4rem; }
+
+  .field label{
+    display:block;
+    font-size:1.05rem;
+    font-weight:800;
+    margin-bottom:0.5rem;
+  }
+
+  .field input{
+    width:100%;
+    font-family:'Nunito', sans-serif;
+    font-size:1.15rem;
+    font-weight:700;
+    padding:0.9rem 1rem;
+    border:2px solid var(--line);
+    border-radius:0.9rem;
+    color:var(--charcoal);
+    background:var(--cream);
+    outline:none;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .field input::placeholder{ color:#B7AC93; font-weight:600; }
+  .field input:focus{ border-color:var(--focus); background:#fff; }
+
+  .show-pass{
+    display:flex;
+    align-items:center;
+    margin-top:0.8rem;
+    cursor:pointer;
+    user-select:none;
+  }
+  .show-pass input{ display:none; }
+  .switch{
+    display:inline-block;
+    width:2.6rem;
+    height:1.5rem;
+    min-width:2.6rem;
+    background:#DCD3BB;
+    border-radius:999px;
+    position:relative;
+    flex-shrink:0;
+    overflow:hidden;
+    transition:background .18s ease;
+    vertical-align:middle;
+  }
+  .switch::before{
+    content:"";
+    position:absolute;
+    top:0.18rem; left:0.18rem;
+    width:1.14rem; height:1.14rem;
+    background:#fff;
+    border-radius:50%;
+    transition:transform .18s ease;
+    box-shadow:0 1px 3px rgba(0,0,0,0.25);
+  }
+  .show-pass input:checked + .switch{ background:var(--forest); }
+  .show-pass input:checked + .switch::before{ transform:translateX(1.1rem); }
+  .show-pass-label{
+    display:inline-block;
+    margin-left:0.7rem;
+    font-size:1rem;
+    font-weight:700;
+    color:var(--muted);
+    white-space:nowrap;
+  }
+
+  .btn-entrar{
+    margin-top:0.4rem;
+    width:100%;
+    border:none;
+    background:var(--forest);
+    color:var(--cream);
+    font-family:'Nunito', sans-serif;
+    font-weight:800;
+    font-size:1.2rem;
+    padding:1.05rem 0;
+    border-radius:1rem;
+    cursor:pointer;
+    box-shadow:0 4px 0 var(--forest-dark);
+    transition:transform .12s ease, box-shadow .12s ease, background .15s ease;
+  }
+  .btn-entrar:hover{ background:var(--forest-dark); }
+  .btn-entrar:active{ transform:translateY(4px); box-shadow:0 0 0 var(--forest-dark); }
+
+  .feedback{
+    text-align:center;
+    font-weight:700;
+    font-size:1rem;
+    color:var(--forest-dark);
+    margin-top:1rem;
+    min-height:1.4rem;
+  }
+
+  .signup-note{
+    text-align:center;
+    font-size:0.98rem;
+    font-weight:700;
+    color:var(--muted);
+    margin-top:1.2rem;
+  }
+  .signup-note a{
+    color:var(--forest);
+    font-weight:800;
+    text-decoration:none;
+  }
+  .signup-note a:hover{ text-decoration:underline; }
+
+  .barcode-wrap{
+    margin-top:1.6rem;
+    display:flex; flex-direction:column; align-items:center; gap:0.4rem;
+  }
+  .barcode{ display:flex; align-items:flex-end; gap:2px; height:1.9rem; }
+  .barcode span{ display:block; width:2px; background:var(--charcoal); opacity:0.55; }
+  .barcode-num{
+    font-family:'Space Mono', monospace;
+    font-size:0.68rem;
+    letter-spacing:0.15em;
+    color:var(--muted);
+  }
+
+  .help{
+    margin-top:1.5rem;
+    padding-top:1.4rem;
+    border-top:2px dashed var(--line);
+    text-align:center;
+  }
+  .help p{ font-size:0.98rem; color:var(--muted); font-weight:700; margin-bottom:0.6rem; }
+  .help a{
+    display:inline-flex; align-items:center; gap:0.5rem;
+    color:var(--tomato);
+    font-weight:800;
+    text-decoration:none;
+    font-size:1.02rem;
+  }
+  .help a:hover{ text-decoration:underline; }
+
+  footer{
+    position:relative;
+    z-index:2;
+    text-align:center;
+    color:var(--muted);
+    font-size:0.85rem;
+    font-weight:700;
+    padding-bottom:1.75rem;
+  }
+
+  input:focus-visible, .btn-entrar:focus-visible, .text-btn:focus-visible, .show-pass:focus-within .switch{
+    outline:3px solid var(--focus);
+    outline-offset:2px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .card, .float-item, .open-dot{ animation:none !important; }
+  }
+
+  @media (max-width:420px){
+    .card{ padding:2.1rem 1.5rem 1.75rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="backdrop">
+  <div class="float-item fi-apple">
+    <svg viewBox="0 0 46 46" fill="none">
+      <path d="M23 14c-7 0-12 5.5-12 13s5 12 10 12c2 0 2.5-1 4-1s2 1 4 1c5.5 0 10-6 10-13 0-4.5-2.5-8-6-9.5" fill="#E8543A"/>
+      <path d="M23 14c-1.5-3 0-6.5 3.5-8" stroke="#1F4D3A" stroke-width="2" stroke-linecap="round" fill="none"/>
+    </svg>
+  </div>
+  <div class="float-item fi-bread">
+    <svg viewBox="0 0 52 40" fill="none">
+      <path d="M4 24c0-11 9-20 22-20s22 9 22 20c0 8-4 12-22 12S4 32 4 24z" fill="#F0AD3D"/>
+      <path d="M14 14c2 3 2 6 0 9M26 12c2 3 2 6 0 9M38 14c2 3 2 6 0 9" stroke="#8a5a1e" stroke-width="2" stroke-linecap="round" fill="none"/>
+    </svg>
+  </div>
+  <div class="float-item fi-carrot">
+    <svg viewBox="0 0 40 46" fill="none">
+      <path d="M20 6l3 6-4 1-3-6z M22 6l4 5-4 2-2-5z" fill="#1F4D3A"/>
+      <path d="M14 16l16 4-16 22-6-20 6-6z" fill="#E8543A"/>
+    </svg>
+  </div>
+  <div class="float-item fi-milk">
+    <svg viewBox="0 0 34 48" fill="none">
+      <path d="M11 4h12l2 8H9l2-8z" fill="#FAF3E4"/>
+      <path d="M9 12h16l3 4v27a3 3 0 01-3 3H9a3 3 0 01-3-3V16l3-4z" fill="#FAF3E4" stroke="#1F4D3A" stroke-width="1.5"/>
+      <rect x="6" y="26" width="22" height="9" fill="#1F4D3A"/>
+    </svg>
+  </div>
+</div>
+
+<header>
+  <div class="brand">
+    <div class="brand-icon">M</div>
+    <div>
+      <div class="brand-name">Mercadinho Bom Preço</div>
+      <div class="brand-sub">Controle de estoque</div>
+    </div>
+  </div>
+
+  <div class="top-controls">
+    <div class="open-tag"><span class="open-dot"></span> ABERTO AGORA</div>
+    <div class="text-size">
+      <button class="text-btn" id="btnMenor" title="Diminuir o tamanho da letra" aria-label="Diminuir o tamanho da letra">A-</button>
+      <span>Letra</span>
+      <button class="text-btn" id="btnMaior" title="Aumentar o tamanho da letra" aria-label="Aumentar o tamanho da letra">A+</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="8" r="4" stroke="#1F4D3A" stroke-width="2"/>
+          <path d="M4 20c0-4 3.5-7 8-7s8 3 8 7" stroke="#1F4D3A" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h1>Bem-vindo de volta!</h1>
+      <p class="subtitle">Entre com seu usuário e senha para ver o estoque da sua loja.</p>
+    </div>
+
+    <hr class="divider">
+
+    <form id="loginForm" onsubmit="return false;">
+      <div class="field">
+        <label for="usuario">Seu usuário</label>
+        <input type="text" id="usuario" placeholder="Digite seu nome de usuário" autocomplete="username">
+      </div>
+
+      <div class="field">
+        <label for="senha">Sua senha</label>
+        <input type="password" id="senha" placeholder="Digite sua senha" autocomplete="current-password">
+        <label class="show-pass">
+          <input type="checkbox" id="verSenha">
+          <span class="switch"></span>
+          <span class="show-pass-label">Mostrar senha</span>
+        </label>
+      </div>
+
+      <button class="btn-entrar" id="btnEntrar" type="submit">Entrar</button>
+      <div class="feedback" id="feedback"></div>
+
+      <p class="signup-note">Ainda não tem cadastro? <a href="cadastro.html">Fazer novo cadastro</a></p>
+    </form>
+
+    <div class="barcode-wrap">
+      <div class="barcode" id="barcode"></div>
+      <div class="barcode-num">7 89000 123456</div>
+    </div>
+
+    <div class="help">
+      <a href="nova-senha.html">Clique aqui caso tenha esquecido sua senha</a>
+    </div>
+  </div>
+</main>
+
+<footer>Mercadinho Bom Preço · Sistema simples de estoque</footer>
+
+<script>
+  // Barcode decorativo
+  const barcode = document.getElementById('barcode');
+  for(let i=0;i<34;i++){
+    const bar = document.createElement('span');
+    const h = 10 + Math.random()*20;
+    bar.style.height = h + 'px';
+    bar.style.width = (Math.random() > 0.75 ? 3 : 1.5) + 'px';
+    barcode.appendChild(bar);
+  }
+
+  // Mostrar/ocultar senha
+  const senha = document.getElementById('senha');
+  const verSenha = document.getElementById('verSenha');
+  verSenha.addEventListener('change', () => {
+    senha.type = verSenha.checked ? 'text' : 'password';
+  });
+
+  // Controle de tamanho da letra (acessibilidade)
+  let scale = 1;
+  const root = document.documentElement;
+  const minScale = 1, maxScale = 1.45, step = 0.15;
+
+  document.getElementById('btnMaior').addEventListener('click', () => {
+    scale = Math.min(maxScale, scale + step);
+    root.style.setProperty('--text-scale', scale);
+  });
+  document.getElementById('btnMenor').addEventListener('click', () => {
+    scale = Math.max(minScale, scale - step);
+    root.style.setProperty('--text-scale', scale);
+  });
+
+  // Feedback simples ao enviar (só visual, sem lógica real ainda)
+  const feedback = document.getElementById('feedback');
+  document.getElementById('loginForm').addEventListener('submit', () => {
+    feedback.textContent = 'Verificando seus dados...';
+    setTimeout(() => {
+      feedback.textContent = 'Tudo certo! Redirecionando...';
+      setTimeout(() => { window.location.href = 'inicio.html'; }, 900);
+    }, 900);
+  });
+</script>
+
+</body>
+</html>

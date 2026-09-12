@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mercadinho Bom Preço — Financeiro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,600;0,700;1,500;1,600&family=Nunito:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#FAF3E4;
+    --card:#FFFDF8;
+    --forest:#1F4D3A;
+    --forest-dark:#163A2B;
+    --tomato:#E8543A;
+    --mustard:#F0AD3D;
+    --charcoal:#2B2620;
+    --muted:#867C69;
+    --line:#E7DFCC;
+    --focus:#2C6B4F;
+    --text-scale:1;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+
+  html{ font-size:calc(16px * var(--text-scale)); }
+
+  body{
+    font-family:'Nunito', sans-serif;
+    color:var(--charcoal);
+    background:var(--cream);
+    min-height:100vh;
+  }
+
+  a{ text-decoration:none; color:inherit; }
+
+  .app{
+    display:flex;
+    min-height:100vh;
+  }
+
+  /* ===== SIDEBAR ===== */
+  .sidebar{
+    width:16rem;
+    flex-shrink:0;
+    background:var(--forest);
+    color:var(--cream);
+    display:flex;
+    flex-direction:column;
+    padding:1.75rem 1.25rem;
+  }
+
+  .side-brand{
+    display:flex;
+    align-items:center;
+    gap:0.75rem;
+    padding:0 0.25rem 1.75rem;
+    margin-bottom:1.5rem;
+    border-bottom:1px solid rgba(250,243,228,0.14);
+  }
+
+  .side-brand-icon{
+    width:2.6rem; height:2.6rem;
+    background:var(--mustard);
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif;
+    font-weight:700;
+    font-size:1.1rem;
+    color:var(--forest-dark);
+    flex-shrink:0;
+  }
+
+  .side-brand-name{ font-weight:800; font-size:1rem; line-height:1.25; }
+  .side-brand-sub{ font-size:0.78rem; color:rgba(250,243,228,0.6); font-weight:700; }
+
+  nav.side-nav{
+    display:flex;
+    flex-direction:column;
+    gap:0.4rem;
+    flex:1;
+  }
+
+  .nav-item{
+    display:flex;
+    align-items:center;
+    gap:0.85rem;
+    padding:0.85rem 1rem;
+    border-radius:0.9rem;
+    font-weight:700;
+    font-size:1.02rem;
+    color:rgba(250,243,228,0.75);
+    transition:background .15s ease, color .15s ease;
+  }
+
+  .nav-item svg{ flex-shrink:0; }
+
+  .nav-item:hover{
+    background:rgba(250,243,228,0.08);
+    color:var(--cream);
+  }
+
+  .nav-item.active{
+    background:var(--cream);
+    color:var(--forest-dark);
+    box-shadow:0 3px 0 rgba(0,0,0,0.1);
+  }
+
+  .side-foot{
+    padding-top:1.5rem;
+    margin-top:1rem;
+    border-top:1px solid rgba(250,243,228,0.14);
+  }
+
+  .user-chip{
+    display:flex;
+    align-items:center;
+    gap:0.75rem;
+    padding:0.6rem 0.5rem;
+    border-radius:0.9rem;
+  }
+
+  .user-avatar{
+    width:2.4rem; height:2.4rem;
+    border-radius:50%;
+    background:rgba(250,243,228,0.15);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800;
+    font-size:1rem;
+    flex-shrink:0;
+  }
+
+  .user-name{ font-weight:800; font-size:0.95rem; }
+  .user-role{ font-size:0.78rem; color:rgba(250,243,228,0.6); font-weight:700; }
+
+  .logout{
+    display:flex;
+    align-items:center;
+    gap:0.7rem;
+    margin-top:0.6rem;
+    padding:0.7rem 0.5rem;
+    border-radius:0.7rem;
+    font-weight:700;
+    font-size:0.92rem;
+    color:rgba(250,243,228,0.65);
+    transition:background .15s ease, color .15s ease;
+  }
+  .logout:hover{ background:rgba(250,243,228,0.08); color:var(--cream); }
+
+  /* ===== CONTENT ===== */
+  .content-wrap{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+  }
+
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:1rem;
+    padding:1.5rem 2rem;
+    flex-wrap:wrap;
+  }
+
+  .greeting h1{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:600;
+    font-size:1.55rem;
+    margin-bottom:0.2rem;
+  }
+  .greeting p{ color:var(--muted); font-weight:700; font-size:0.95rem; }
+
+  .text-size{
+    display:flex; align-items:center; gap:0.4rem;
+    background:var(--card);
+    border:2px solid var(--line);
+    border-radius:999px;
+    padding:0.3rem;
+  }
+  .text-size span{ font-size:0.8rem; font-weight:700; color:var(--muted); padding:0 0.3rem; }
+  .text-btn{
+    width:2.4rem; height:2.4rem;
+    border:none;
+    background:var(--cream);
+    border-radius:50%;
+    font-family:'Nunito', sans-serif;
+    font-weight:800;
+    font-size:0.95rem;
+    color:var(--forest-dark);
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:background .15s ease, transform .1s ease;
+  }
+  .text-btn:hover{ background:#EFE7D4; }
+  .text-btn:active{ transform:scale(0.92); }
+
+  main.dashboard{
+    padding:0.5rem 2rem 2.5rem;
+    flex:1;
+  }
+
+  .stats-grid{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:1.25rem;
+    margin-bottom:2rem;
+  }
+
+  .stat-card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:1.1rem;
+    padding:1.4rem 1.4rem;
+    box-shadow:0 0.6rem 1.6rem rgba(31,77,58,0.06);
+  }
+
+  .stat-icon{
+    width:2.6rem; height:2.6rem;
+    border-radius:0.8rem;
+    display:flex; align-items:center; justify-content:center;
+    margin-bottom:0.9rem;
+  }
+  .stat-icon.green{ background:#EAF3EC; }
+  .stat-icon.amber{ background:#FDF1DE; }
+  .stat-icon.red{ background:#FBE8E4; }
+  .stat-icon.blue{ background:#E9F1F3; }
+
+  .stat-value{
+    font-family:'Fraunces', serif;
+    font-weight:700;
+    font-size:1.65rem;
+    margin-bottom:0.2rem;
+  }
+  .stat-label{ font-size:0.9rem; font-weight:700; color:var(--muted); }
+
+  .panels{
+    display:grid;
+    grid-template-columns:1.4fr 1fr;
+    gap:1.5rem;
+  }
+
+  .panel{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:1.1rem;
+    padding:1.6rem 1.6rem;
+    box-shadow:0 0.6rem 1.6rem rgba(31,77,58,0.06);
+  }
+
+  .panel h2{
+    font-size:1.15rem;
+    font-weight:800;
+    margin-bottom:1.1rem;
+  }
+
+  .list-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:1rem;
+    padding:0.75rem 0;
+    border-bottom:1px dashed var(--line);
+    font-weight:700;
+    font-size:0.95rem;
+  }
+  .list-row:last-child{ border-bottom:none; }
+  .list-row .tag{
+    font-family:'Space Mono', monospace;
+    font-size:0.72rem;
+    padding:0.25rem 0.6rem;
+    border-radius:999px;
+    font-weight:700;
+  }
+  .tag.low{ background:#FBE8E4; color:var(--tomato); }
+  .tag.ok{ background:#EAF3EC; color:var(--forest); }
+
+  .quick-actions{
+    display:flex;
+    flex-direction:column;
+    gap:0.75rem;
+  }
+  .quick-btn{
+    display:flex;
+    align-items:center;
+    gap:0.8rem;
+    padding:0.9rem 1rem;
+    border-radius:0.9rem;
+    background:var(--cream);
+    border:1px solid var(--line);
+    font-weight:800;
+    font-size:0.95rem;
+    transition:background .15s ease, transform .1s ease;
+  }
+  .quick-btn:hover{ background:#F1E8D4; }
+  .quick-btn:active{ transform:scale(0.98); }
+  .quick-btn svg{ flex-shrink:0; }
+
+  /* ===== MOBILE: sidebar becomes bottom nav ===== */
+  @media (max-width:900px){
+    .app{ flex-direction:column; }
+
+    .sidebar{
+      width:100%;
+      flex-direction:row;
+      align-items:center;
+      padding:0.75rem 1rem;
+      position:fixed;
+      bottom:0; left:0; right:0;
+      z-index:10;
+      box-shadow:0 -0.5rem 1.5rem rgba(0,0,0,0.15);
+    }
+    .side-brand, .side-foot{ display:none; }
+    nav.side-nav{
+      flex-direction:row;
+      justify-content:space-between;
+      width:100%;
+      gap:0.2rem;
+    }
+    .nav-item{
+      flex-direction:column;
+      gap:0.25rem;
+      padding:0.5rem 0.4rem;
+      font-size:0.7rem;
+      text-align:center;
+      flex:1;
+    }
+    .nav-item.active{ box-shadow:none; }
+
+    .content-wrap{ padding-bottom:5.5rem; }
+    .topbar{ padding:1.25rem 1.25rem 0.5rem; }
+    main.dashboard{ padding:0.5rem 1.25rem 2rem; }
+    .stats-grid{ grid-template-columns:repeat(2, 1fr); }
+    .panels{ grid-template-columns:1fr; }
+  }
+
+  @media (max-width:520px){
+    .stats-grid{ grid-template-columns:1fr; }
+  }
+
+  input:focus-visible, .text-btn:focus-visible, .nav-item:focus-visible, .quick-btn:focus-visible{
+    outline:3px solid var(--focus);
+    outline-offset:2px;
+  }
+
+  /* ===== FINANCEIRO ===== */
+  .period-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:1.25rem;
+    margin-bottom:2rem;
+  }
+
+  .period-card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:1.1rem;
+    padding:1.6rem 1.6rem;
+    box-shadow:0 0.6rem 1.6rem rgba(31,77,58,0.06);
+  }
+
+  .period-card.destaque{
+    background:var(--forest);
+    border-color:var(--forest);
+  }
+
+  .period-label{
+    font-family:'Space Mono', monospace;
+    font-size:0.78rem;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    color:var(--muted);
+    font-weight:700;
+    margin-bottom:0.6rem;
+  }
+  .period-card.destaque .period-label{ color:rgba(250,243,228,0.7); }
+
+  .period-value{
+    font-family:'Fraunces', serif;
+    font-weight:700;
+    font-size:2.1rem;
+    margin-bottom:0.3rem;
+  }
+  .period-card.destaque .period-value{ color:var(--cream); }
+
+  .period-sub{
+    font-size:0.86rem;
+    font-weight:700;
+    color:var(--muted);
+  }
+  .period-card.destaque .period-sub{ color:rgba(250,243,228,0.6); }
+
+  .section-title{
+    font-size:1.15rem;
+    font-weight:800;
+    margin:0 0 1.1rem;
+  }
+
+  .pay-grid{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:1.25rem;
+    margin-bottom:2rem;
+  }
+
+  .pay-card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:1.1rem;
+    padding:1.4rem 1.4rem;
+    box-shadow:0 0.6rem 1.6rem rgba(31,77,58,0.06);
+  }
+
+  .pay-icon{
+    width:2.6rem; height:2.6rem;
+    border-radius:0.8rem;
+    display:flex; align-items:center; justify-content:center;
+    margin-bottom:0.9rem;
+  }
+  .pay-icon.teal{ background:#E1F3F0; }
+  .pay-icon.green{ background:#EAF3EC; }
+  .pay-icon.blue{ background:#E9F1F3; }
+  .pay-icon.amber{ background:#FDF1DE; }
+
+  .pay-value{
+    font-family:'Fraunces', serif;
+    font-weight:700;
+    font-size:1.5rem;
+    margin-bottom:0.2rem;
+  }
+  .pay-label{ font-size:0.88rem; font-weight:700; color:var(--muted); margin-bottom:0.7rem; }
+
+  .pay-bar-track{
+    width:100%;
+    height:0.5rem;
+    background:var(--line);
+    border-radius:999px;
+    overflow:hidden;
+    margin-bottom:0.4rem;
+  }
+  .pay-bar-fill{
+    height:100%;
+    border-radius:999px;
+  }
+  .pay-bar-fill.teal{ background:#2BA69A; }
+  .pay-bar-fill.green{ background:var(--forest); }
+  .pay-bar-fill.blue{ background:#2C6B4F; }
+  .pay-bar-fill.amber{ background:var(--mustard); }
+
+  .pay-percent{
+    font-family:'Space Mono', monospace;
+    font-size:0.78rem;
+    color:var(--muted);
+    font-weight:700;
+  }
+
+  @media (max-width:900px){
+    .period-grid{ grid-template-columns:1fr; }
+    .pay-grid{ grid-template-columns:repeat(2, 1fr); }
+  }
+  @media (max-width:520px){
+    .pay-grid{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<script>
+  // Bloqueia o acesso direto de funcionários a esta página, mesmo digitando a URL
+  if((localStorage.getItem('usuarioTipo') || 'admin') === 'funcionario'){
+    window.location.href = 'inicio.html';
+  }
+</script>
+
+<div class="app">
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar">
+    <div class="side-brand">
+      <div class="side-brand-icon">M</div>
+      <div>
+        <div class="side-brand-name">Mercadinho Bom Preço</div>
+        <div class="side-brand-sub">Controle de estoque</div>
+      </div>
+    </div>
+
+    <nav class="side-nav">
+      <a class="nav-item" href="inicio.html">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 11l8-7 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 10v9a1 1 0 001 1h10a1 1 0 001-1v-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 20v-6h4v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Início
+      </a>
+      <a class="nav-item" href="perfil.html">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.5-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Perfil
+      </a>
+      <a class="nav-item" href="produtos.html">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-5 9 5-9 5-9-5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 9v7l9 5 9-5V9" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 14v7" stroke="currentColor" stroke-width="2"/></svg>
+        Produtos
+      </a>
+      <a class="nav-item" href="promocao.html">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20.6 12.7L12.7 20.6a2 2 0 01-2.8 0l-7.5-7.5a2 2 0 010-2.8L10.3 2.4A2 2 0 0111.7 2H19a2 2 0 012 2v7.3a2 2 0 01-.4 1.4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="15" cy="7" r="1.5" fill="currentColor"/></svg>
+        Promoção
+      </a>
+      <a class="nav-item" href="estoque.html">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="10" width="7" height="10" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="6" width="7" height="14" rx="1" stroke="currentColor" stroke-width="2"/></svg>
+        Estoque
+      </a>
+      <a class="nav-item active" href="financeiro.html">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v10M9.5 9.5c0-1.1 1.1-2 2.5-2s2.5.75 2.5 1.9c0 2.6-5 1.4-5 4 0 1.15 1.1 1.9 2.5 1.9s2.5-.9 2.5-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Financeiro
+      </a>
+      <a class="nav-item" href="vendas.html">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="20" r="1.3" fill="currentColor"/><circle cx="17" cy="20" r="1.3" fill="currentColor"/><path d="M3 4h2l2.2 11.2a2 2 0 002 1.8h7.6a2 2 0 002-1.6L20 8H6.2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Vendas
+      </a>
+    </nav>
+
+    <div class="side-foot">
+      <div class="user-chip">
+        <div class="user-avatar">J</div>
+        <div>
+          <div class="user-name">José</div>
+          <div class="user-role">Dono da loja</div>
+        </div>
+      </div>
+      <a class="logout" href="login-mesclado.html">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Sair
+      </a>
+    </div>
+  </aside>
+
+  <!-- ===== CONTENT ===== -->
+  <div class="content-wrap">
+    <header class="topbar">
+      <div class="greeting">
+        <h1>Financeiro</h1>
+        <p>Veja quanto sua loja arrecadou e por qual forma de pagamento.</p>
+      </div>
+      <div class="text-size">
+        <button class="text-btn" id="btnMenor" title="Diminuir o tamanho da letra" aria-label="Diminuir o tamanho da letra">A-</button>
+        <span>Letra</span>
+        <button class="text-btn" id="btnMaior" title="Aumentar o tamanho da letra" aria-label="Aumentar o tamanho da letra">A+</button>
+      </div>
+    </header>
+
+    <main class="dashboard">
+
+      <div class="period-grid">
+        <div class="period-card destaque">
+          <div class="period-label">Hoje</div>
+          <div class="period-value" id="valorHoje">R$ 0,00</div>
+          <div class="period-sub" id="vendasHojeTexto">—</div>
+        </div>
+        <div class="period-card">
+          <div class="period-label">Esta semana</div>
+          <div class="period-value" id="valorSemana">R$ 0,00</div>
+          <div class="period-sub">Últimos 7 dias</div>
+        </div>
+        <div class="period-card">
+          <div class="period-label">Este mês</div>
+          <div class="period-value" id="valorMes">R$ 0,00</div>
+          <div class="period-sub" id="mesTexto">—</div>
+        </div>
+      </div>
+
+      <h2 class="section-title">Recebimentos de hoje por forma de pagamento</h2>
+      <div class="pay-grid">
+        <div class="pay-card">
+          <div class="pay-icon teal">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3l3.5 3.5-2.1 2.1L12 7.2 10.6 8.6 8.5 6.5 12 3z" fill="#2BA69A"/><path d="M12 21l-3.5-3.5 2.1-2.1L12 16.8l1.4-1.4 2.1 2.1L12 21z" fill="#2BA69A"/><path d="M3 12l3.5-3.5 2.1 2.1L7.2 12l1.4 1.4-2.1 2.1L3 12z" fill="#2BA69A"/><path d="M21 12l-3.5 3.5-2.1-2.1L16.8 12l-1.4-1.4 2.1-2.1L21 12z" fill="#2BA69A"/></svg>
+          </div>
+          <div class="pay-value" id="valorPix">R$ 0,00</div>
+          <div class="pay-label">Pix</div>
+          <div class="pay-bar-track"><div class="pay-bar-fill teal" id="barraPix"></div></div>
+          <div class="pay-percent" id="percentPix">0%</div>
+        </div>
+
+        <div class="pay-card">
+          <div class="pay-icon green">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="6" width="20" height="12" rx="2" stroke="#1F4D3A" stroke-width="2"/><circle cx="12" cy="12" r="2.5" stroke="#1F4D3A" stroke-width="2"/></svg>
+          </div>
+          <div class="pay-value" id="valorDinheiro">R$ 0,00</div>
+          <div class="pay-label">Dinheiro</div>
+          <div class="pay-bar-track"><div class="pay-bar-fill green" id="barraDinheiro"></div></div>
+          <div class="pay-percent" id="percentDinheiro">0%</div>
+        </div>
+
+        <div class="pay-card">
+          <div class="pay-icon blue">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="2" stroke="#2C6B4F" stroke-width="2"/><path d="M2 10h20" stroke="#2C6B4F" stroke-width="2"/><path d="M6 15h4" stroke="#2C6B4F" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <div class="pay-value" id="valorDebito">R$ 0,00</div>
+          <div class="pay-label">Cartão de débito</div>
+          <div class="pay-bar-track"><div class="pay-bar-fill blue" id="barraDebito"></div></div>
+          <div class="pay-percent" id="percentDebito">0%</div>
+        </div>
+
+        <div class="pay-card">
+          <div class="pay-icon amber">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="2" stroke="#B8790F" stroke-width="2"/><path d="M2 10h20" stroke="#B8790F" stroke-width="2"/><path d="M15 15h3" stroke="#B8790F" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <div class="pay-value" id="valorCredito">R$ 0,00</div>
+          <div class="pay-label">Cartão de crédito</div>
+          <div class="pay-bar-track"><div class="pay-bar-fill amber" id="barraCredito"></div></div>
+          <div class="pay-percent" id="percentCredito">0%</div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+</div>
+
+<script>
+  // Controle de tamanho da letra (acessibilidade)
+  let scale = 1;
+  const root = document.documentElement;
+  const minScale = 1, maxScale = 1.45, step = 0.15;
+
+  document.getElementById('btnMaior').addEventListener('click', () => {
+    scale = Math.min(maxScale, scale + step);
+    root.style.setProperty('--text-scale', scale);
+  });
+  document.getElementById('btnMenor').addEventListener('click', () => {
+    scale = Math.max(minScale, scale - step);
+    root.style.setProperty('--text-scale', scale);
+  });
+
+  // Esconde o item "Financeiro" do menu para usuários do tipo funcionário
+  const tipoUsuarioAtual = localStorage.getItem('usuarioTipo') || 'admin';
+  if(tipoUsuarioAtual === 'funcionario'){
+    document.querySelectorAll('a.nav-item[href="financeiro.html"]').forEach(el => el.style.display = 'none');
+  }
+
+  // ===== Dados financeiros (exemplo, só em memória) =====
+  const recebimentosHoje = {
+    pix: 320.00,
+    dinheiro: 210.00,
+    debito: 150.00,
+    credito: 132.00
+  };
+
+  const totalSemana = 4360.00;
+  const totalMes = 15920.00;
+  const vendasHoje = 14;
+
+  function formatarMoeda(valor){
+    return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  const totalHoje = Object.values(recebimentosHoje).reduce((soma, v) => soma + v, 0);
+
+  document.getElementById('valorHoje').textContent = formatarMoeda(totalHoje);
+  document.getElementById('vendasHojeTexto').textContent = `${vendasHoje} venda(s) hoje`;
+  document.getElementById('valorSemana').textContent = formatarMoeda(totalSemana);
+  document.getElementById('valorMes').textContent = formatarMoeda(totalMes);
+
+  const hoje = new Date();
+  const nomesMeses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  document.getElementById('mesTexto').textContent = `Mês de ${nomesMeses[hoje.getMonth()]}`;
+
+  function preencherFormaPagamento(chave, elId, barraId, percentId){
+    const valor = recebimentosHoje[chave];
+    const percentual = totalHoje > 0 ? Math.round((valor / totalHoje) * 100) : 0;
+    document.getElementById(elId).textContent = formatarMoeda(valor);
+    document.getElementById(barraId).style.width = percentual + '%';
+    document.getElementById(percentId).textContent = percentual + '% do dia';
+  }
+
+  preencherFormaPagamento('pix', 'valorPix', 'barraPix', 'percentPix');
+  preencherFormaPagamento('dinheiro', 'valorDinheiro', 'barraDinheiro', 'percentDinheiro');
+  preencherFormaPagamento('debito', 'valorDebito', 'barraDebito', 'percentDebito');
+  preencherFormaPagamento('credito', 'valorCredito', 'barraCredito', 'percentCredito');
+</script>
+
+</body>
+</html>
