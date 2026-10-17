@@ -447,7 +447,7 @@
           <div class="stat-label">Vendas de hoje</div>
         </div>
 
-        <div class="stat-card">
+        <div class="stat-card" id="cardTotalCaixa">
           <div class="stat-icon blue">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#2C6B4F" stroke-width="2"/><path d="M12 7v10M9.5 9.5c0-1.1 1.1-2 2.5-2s2.5.75 2.5 1.9c0 2.6-5 1.4-5 4 0 1.15 1.1 1.9 2.5 1.9s2.5-.9 2.5-2" stroke="#2C6B4F" stroke-width="1.8" stroke-linecap="round"/></svg>
           </div>
@@ -506,9 +506,23 @@
   });
 
   // Esconde o item "Financeiro" do menu para usuários do tipo funcionário
-  const tipoUsuarioAtual = localStorage.getItem('usuarioTipo') || 'admin';
-  if(tipoUsuarioAtual === 'funcionario'){
-    document.querySelectorAll('a.nav-item[href="financeiro.html"]').forEach(el => el.style.display = 'none');
+  const tipoUsuarioAtual = (localStorage.getItem('usuarioTipo') || '')
+      .trim()
+      .toLowerCase();
+
+  if (
+      tipoUsuarioAtual === 'funcional' ||
+      tipoUsuarioAtual === 'funcionário' ||
+      tipoUsuarioAtual === 'funcionario'
+  ) {
+    document.querySelectorAll('a.nav-item[href="financeiro.html"]')
+        .forEach(el => el.style.display = 'none');
+
+    const cardTotalCaixa = document.getElementById('cardTotalCaixa');
+
+    if (cardTotalCaixa) {
+        cardTotalCaixa.remove();
+    }
   }
 </script>
 

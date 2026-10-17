@@ -441,15 +441,20 @@
         </svg>
       </div>
       <h1>Bem-vindo de volta!</h1>
-      <p class="subtitle">Entre com seu usuário e senha para ver o estoque da sua loja.</p>
+      <p class="subtitle">Entre com seu email e senha para ver o estoque da sua loja.</p>
     </div>
 
     <hr class="divider">
 
     <form id="loginForm" onsubmit="return false;">
       <div class="field">
-        <label for="usuario">Seu usuário</label>
-        <input type="text" id="usuario" placeholder="Digite seu nome de usuário" autocomplete="username">
+        <label for="email">Seu email</label>
+        <input
+            type="email"
+            id="email"
+            placeholder="Digite seu email"
+            autocomplete="email"
+        >
       </div>
 
       <div class="field">
@@ -513,14 +518,44 @@
     root.style.setProperty('--text-scale', scale);
   });
 
-  // Feedback simples ao enviar (só visual, sem lógica real ainda)
+  // Envio do login para o Python (Flask)
   const feedback = document.getElementById('feedback');
-  document.getElementById('loginForm').addEventListener('submit', () => {
-    feedback.textContent = 'Verificando seus dados...';
-    setTimeout(() => {
-      feedback.textContent = 'Tudo certo! Redirecionando...';
-      setTimeout(() => { window.location.href = 'inicio.html'; }, 900);
-    }, 900);
+
+  document.getElementById('loginForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const email = document.getElementById('email').value;
+      const senha = document.getElementById('senha').value;
+
+      feedback.textContent = 'Enviando dados...';
+
+      try {
+          const resposta = await fetch('http://127.0.0.1:5000/login', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                  email: email,
+                  senha: senha
+              })
+          });
+
+          const dados = await resposta.json();
+
+          if (resposta.ok) {
+              localStorage.setItem('usuarioTipo', dados.funcao);
+              localStorage.setItem('usuarioNome', dados.nome || '');
+
+              window.location.href = 'inicio.html';
+          } else {
+              feedback.textContent = dados.mensagem || 'Falha no login.';
+          }
+
+      } catch (erro) {
+          console.error('Erro:', erro);
+          feedback.textContent = 'Não foi possível conectar ao servidor.';
+      }
   });
 </script>
 

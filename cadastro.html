@@ -456,13 +456,18 @@
       </div>
 
       <div class="field">
+        <label for="nomeLoja">Nome da loja</label>
+        <input type="text" id="nomeLoja" placeholder="Digite o nome da sua loja" autocomplete="organization">
+      </div>
+
+      <div class="field">
         <label for="novoUsuario">E-mail</label>
-        <input type="email" id="novoUsuario" placeholder="Digite seu e-mail" autocomplete="email">
+        <input type="email" id="novoUsuario" placeholder="seunome@gmail.com" autocomplete="email">
       </div>
 
       <div class="field">
         <label for="novaSenha">Senha</label>
-        <input type="password" id="novaSenha" placeholder="Crie uma senha" autocomplete="new-password">
+        <input type="password" id="novaSenha" placeholder="Crie uma senha (mínimo 6 caracteres)" autocomplete="new-password">
         <label class="show-pass">
           <input type="checkbox" id="verSenha1">
           <span class="switch"></span>
@@ -574,16 +579,62 @@
     });
   });
 
-  // Feedback simples ao enviar (só visual, sem lógica real ainda)
+  // Envio do cadastro para o Python (Flask)
   const feedback = document.getElementById('feedback');
-  document.getElementById('cadastroForm').addEventListener('submit', () => {
+  const btnCriar = document.getElementById('btnCriar');
+
+  // Mesma regra do app.py: e-mail terminado em @gmail.com
+  const REGEX_GMAIL = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/;
+
+  document.getElementById('cadastroForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const nome = document.getElementById('nomeCompleto').value.trim();
+    const email = document.getElementById('novoUsuario').value.trim().toLowerCase();
+    const senha = novaSenha.value;
+
+    // Validações no navegador (o app.py repete as mesmas)
+    if (!nome || !email || !senha) {
+      feedback.textContent = 'Preencha todos os campos.';
+      return;
+    }
+    if (!REGEX_GMAIL.test(email)) {
+      feedback.textContent = 'Use um e-mail terminado em @gmail.com.';
+      return;
+    }
+    if (senha.length < 6) {
+      feedback.textContent = 'A senha deve ter pelo menos 6 caracteres.';
+      return;
+    }
+    if (senha !== confirmarSenha.value) {
+      feedback.textContent = 'As senhas não são iguais.';
+      return;
+    }
+
     feedback.textContent = 'Cadastrando...';
-    setTimeout(() => {
-      feedback.textContent = 'Tudo certo! Redirecionando...';
-      // guarda o tipo de usuário para o sistema saber quais áreas mostrar
-      localStorage.setItem('usuarioTipo', tipoUsuarioSelecionado);
-      setTimeout(() => { window.location.href = 'inicio.html'; }, 900);
-    }, 900);
+    btnCriar.disabled = true;
+
+    try {
+      const resposta = await fetch('http://127.0.0.1:5000/cadastro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome: nome, email: email, senha: senha })
+      });
+
+      const dados = await resposta.json();
+      feedback.textContent = dados.mensagem || 'Não foi possível cadastrar.';
+
+      if (resposta.ok) {
+        // Cadastro feito: manda para o login para entrar com o novo acesso
+        setTimeout(() => { window.location.href = 'login-mesclado.html'; }, 1200);
+      } else {
+        btnCriar.disabled = false;
+      }
+    } catch (erro) {
+      console.error('Erro:', erro);
+      feedback.textContent = 'Não foi possível conectar ao servidor.';
+      btnCriar.disabled = false;
+    }
   });
 </script>
 
