@@ -667,7 +667,12 @@
   }
 
   /* ===== Blocos de item dentro do modal de venda ===== */
-  .modal-card.wide{ max-width:34rem; }
+  .modal-card.wide{
+    max-width:34rem;
+    /* com vários itens a janela rola, para o botão Salvar nunca ficar fora da tela */
+    max-height:calc(100vh - 2.5rem);
+    overflow-y:auto;
+  }
 
   .item-block{
     position:relative;
@@ -769,6 +774,38 @@
     font-size:1.3rem;
     color:var(--forest-dark);
   }
+
+  /* aviso dentro do modal de venda (produto fora do estoque etc.) */
+  .form-erro{
+    display:none;
+    background:#FBE8E4;
+    border:2px solid var(--tomato);
+    color:#9C3A26;
+    border-radius:0.8rem;
+    padding:0.7rem 0.9rem;
+    margin-bottom:1rem;
+    font-weight:700;
+    font-size:0.92rem;
+    line-height:1.4;
+  }
+  .form-erro.show{ display:block; }
+
+  /* valor calculado automaticamente (somente leitura) e avisos de estoque/preço */
+  .modal-field input[readonly]{
+    background:var(--line);
+    color:var(--forest-dark);
+    cursor:default;
+  }
+  .modal-field input[readonly]:focus{ border-color:var(--line); background:var(--line); }
+
+  .item-hint{
+    margin-top:0.35rem;
+    font-size:0.82rem;
+    font-weight:700;
+    color:var(--muted);
+    min-height:1.1rem;
+  }
+  .item-hint.bad{ color:var(--tomato); }
 </style>
 </head>
 <body>
@@ -928,6 +965,8 @@
         <span id="totalVenda">R$ 0,00</span>
       </div>
 
+      <div class="form-erro" id="erroVenda" role="alert"></div>
+
       <button type="submit" class="modal-save" id="btnSalvarVenda">Salvar venda</button>
     </form>
   </div>
@@ -952,6 +991,50 @@
   const tipoUsuarioAtual = localStorage.getItem('usuarioTipo') || 'admin';
   if(tipoUsuarioAtual === 'funcionario'){
     document.querySelectorAll('a.nav-item[href="financeiro.html"]').forEach(el => el.style.display = 'none');
+  }
+
+  // ===== Produtos em estoque: vêm da página Produtos =====
+  // Só dá para vender o que está nessa lista (a mesma que a página Estoque mostra).
+  // Se nada foi salvo ainda, usa os mesmos exemplos de lá.
+  const CHAVE_PRODUTOS = 'produtosMercadinho';
+
+  const PRODUTOS_PADRAO = [
+    { id: 1, nome: 'Arroz 5kg', classe: 'Grãos', quantidade: 3, preco: 24.90, validade: '2026-12-01' },
+    { id: 2, nome: 'Óleo de soja 900ml', classe: 'Líquidos', quantidade: 2, preco: 8.50, validade: '2027-03-15' },
+    { id: 3, nome: 'Feijão carioca 1kg', classe: 'Grãos', quantidade: 4, preco: 9.20, validade: '2026-11-20' },
+    { id: 4, nome: 'Café 500g', classe: 'Mercearia', quantidade: 18, preco: 14.90, validade: '2027-01-10' },
+    { id: 5, nome: 'Leite integral 1L', classe: 'Líquidos', quantidade: 22, preco: 5.20, validade: '2026-10-05' },
+  ];
+
+  function carregarProdutos(){
+    try{
+      const salvo = localStorage.getItem(CHAVE_PRODUTOS);
+      if(salvo !== null){
+        const lista = JSON.parse(salvo);
+        if(Array.isArray(lista)) return lista;
+      }
+    }catch(e){}
+    return PRODUTOS_PADRAO.map(p => ({ ...p }));
+  }
+
+  // evita que um nome com < > & quebre a tela
+  function escapeHtml(texto){
+    return String(texto).replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+
+  const MSG_SEM_ESTOQUE = 'Não há produtos no estoque. Cadastre um produto em "Produtos" antes de registrar uma venda.';
+
+  function mostrarErro(texto){
+    const el = document.getElementById('erroVenda');
+    el.textContent = texto;
+    el.classList.add('show');
+  }
+  function limparErro(){
+    const el = document.getElementById('erroVenda');
+    el.textContent = '';
+    el.classList.remove('show');
   }
 
   // ===== Dados das vendas (exemplo, só em memória) =====
@@ -1025,7 +1108,7 @@
           tr.addEventListener('click', () => selecionarVenda(venda.id));
         }
 
-        const resumoProdutos = venda.itens.map(i => `${i.nome} (${i.quantidade}x)`).join(', ');
+        const resumoProdutos = venda.itens.map(i => `${escapeHtml(i.nome)} (${i.quantidade}x)`).join(', ');
         const pills = formasDaVenda(venda).map(f => `<span class="pay-pill">${f}</span>`).join('');
 
         tr.innerHTML = `
@@ -1053,6 +1136,17 @@
       `<option value="${forma}" ${dados.pagamento === forma ? 'selected' : ''}>${forma}</option>`
     ).join('');
 
+    // só aparecem produtos que estão no estoque (lista cadastrada em Produtos)
+    const nomesEstoque = [...new Set(carregarProdutos().map(p => p.nome))];
+    let opcoesProduto = '<option value="">Selecione um produto</option>' +
+      nomesEstoque.map(nome =>
+        `<option value="${escapeHtml(nome)}" ${dados.nome === nome ? 'selected' : ''}>${escapeHtml(nome)}</option>`
+      ).join('');
+    // venda antiga com produto que saiu do estoque: o nome aparece, mas salvar fica bloqueado
+    if(dados.nome && !nomesEstoque.includes(dados.nome)){
+      opcoesProduto += `<option value="${escapeHtml(dados.nome)}" selected>${escapeHtml(dados.nome)} (fora do estoque)</option>`;
+    }
+
     bloco.innerHTML = `
       <div class="item-block-head">
         <span>Produto</span>
@@ -1062,17 +1156,19 @@
         </button>
       </div>
       <div class="modal-field">
-        <label>Nome do produto</label>
-        <input type="text" class="campo-item-nome" placeholder="Ex: Arroz 5kg" value="${dados.nome ? dados.nome.replace(/"/g, '&quot;') : ''}">
+        <label>Produto (do estoque)</label>
+        <select class="campo-item-nome">${opcoesProduto}</select>
       </div>
       <div class="item-row">
         <div class="modal-field">
           <label>Quantidade</label>
           <input type="number" class="campo-item-quantidade" min="0" placeholder="Ex: 2" value="${dados.quantidade ?? ''}">
+          <div class="item-hint hint-estoque"></div>
         </div>
         <div class="modal-field">
-          <label>Valor</label>
-          <input type="number" class="campo-item-valor" min="0" step="0.01" placeholder="Ex: 24.90" value="${dados.valor ?? ''}">
+          <label>Valor (preço × quantidade)</label>
+          <input type="number" class="campo-item-valor" min="0" step="0.01" placeholder="Automático" readonly value="${dados.valor != null ? Number(dados.valor).toFixed(2) : ''}">
+          <div class="item-hint hint-preco"></div>
         </div>
       </div>
       <div class="modal-field">
@@ -1086,10 +1182,60 @@
       atualizarBotoesRemover();
       atualizarTotalVenda();
     });
-    bloco.querySelector('.campo-item-valor').addEventListener('input', atualizarTotalVenda);
-    bloco.querySelector('.campo-item-quantidade').addEventListener('input', atualizarTotalVenda);
+    // trocar o produto ou a quantidade recalcula o valor (preço unitário × quantidade)
+    bloco.querySelector('.campo-item-nome').addEventListener('change', () => atualizarLinha(bloco, true));
+    bloco.querySelector('.campo-item-quantidade').addEventListener('input', () => atualizarLinha(bloco, true));
+
+    // ao abrir uma venda já registrada, mostra os avisos sem mexer no valor que ficou salvo
+    atualizarLinha(bloco, false);
 
     return bloco;
+  }
+
+  function buscarProduto(nome){
+    return carregarProdutos().find(p => p.nome === nome) || null;
+  }
+
+  // Atualiza os avisos de estoque/preço da linha e, se pedido, o valor = preço unitário × quantidade
+  function atualizarLinha(bloco, recalcularValor){
+    const nome = bloco.querySelector('.campo-item-nome').value;
+    const campoQtd = bloco.querySelector('.campo-item-quantidade');
+    const campoValor = bloco.querySelector('.campo-item-valor');
+    const hintEstoque = bloco.querySelector('.hint-estoque');
+    const hintPreco = bloco.querySelector('.hint-preco');
+
+    const produto = nome ? buscarProduto(nome) : null;
+    const quantidade = parseInt(campoQtd.value) || 0;
+
+    hintEstoque.classList.remove('bad');
+    if(!nome){
+      hintEstoque.textContent = '';
+      hintPreco.textContent = '';
+    } else if(!produto){
+      hintEstoque.textContent = 'Produto fora do estoque.';
+      hintEstoque.classList.add('bad');
+      hintPreco.textContent = '';
+    } else {
+      const disponivel = Number(produto.quantidade) || 0;
+      const preco = Number(produto.preco) || 0;
+      hintPreco.textContent = `Preço unitário: ${formatarMoeda(preco)}`;
+      if(quantidade > disponivel){
+        hintEstoque.textContent = disponivel === 0 ? 'Sem estoque deste produto.' : `Só há ${disponivel} unid. em estoque.`;
+        hintEstoque.classList.add('bad');
+      } else {
+        hintEstoque.textContent = `Em estoque: ${disponivel} unid.`;
+      }
+    }
+
+    if(recalcularValor){
+      if(produto && quantidade > 0){
+        const total = Math.round((Number(produto.preco) || 0) * quantidade * 100) / 100;
+        campoValor.value = total.toFixed(2);
+      } else {
+        campoValor.value = '';
+      }
+      atualizarTotalVenda();
+    }
   }
 
   function atualizarBotoesRemover(){
@@ -1160,6 +1306,8 @@
 
   // ===== Modal Registrar/Alterar =====
   function abrirModalVenda(){
+    limparErro();
+    if(carregarProdutos().length === 0) mostrarErro(MSG_SEM_ESTOQUE);
     modalVenda.classList.add('show');
   }
   function fecharModalVendaFn(){
@@ -1169,20 +1317,67 @@
   modalVenda.addEventListener('click', (e) => { if(e.target === modalVenda) fecharModalVendaFn(); });
 
   formVenda.addEventListener('submit', () => {
+    limparErro();
+
+    // confere o estoque na hora de salvar (a lista pode ter mudado em outra aba)
+    const porNome = new Map();
+    carregarProdutos().forEach(p => { if(!porNome.has(p.nome)) porNome.set(p.nome, p); });
+    if(porNome.size === 0){
+      mostrarErro(MSG_SEM_ESTOQUE);
+      return;
+    }
+
     const itens = [];
+    const somaPorProduto = new Map();   // total vendido de cada produto nesta venda
+    let erro = null;
+    let campoComErro = null;
+    const falhar = (mensagem, campo) => { if(!erro){ erro = mensagem; campoComErro = campo; } };
+
     itensContainer.querySelectorAll('.item-block').forEach(bloco => {
-      const nome = bloco.querySelector('.campo-item-nome').value.trim();
-      if(!nome) return;
+      const campoNome = bloco.querySelector('.campo-item-nome');
+      const campoQtd = bloco.querySelector('.campo-item-quantidade');
+      const nome = campoNome.value;
+      const quantidade = parseInt(campoQtd.value) || 0;
+
+      if(!nome){
+        falhar('Escolha o produto em todos os itens (ou remova o item vazio).', campoNome);
+      } else if(!porNome.has(nome)){
+        falhar(`"${nome}" não está no estoque. Escolha outro produto ou remova o item.`, campoNome);
+      } else if(quantidade < 1){
+        falhar(`Informe a quantidade de "${nome}" (mínimo 1).`, campoQtd);
+      } else {
+        somaPorProduto.set(nome, (somaPorProduto.get(nome) || 0) + quantidade);
+      }
+
       itens.push({
         nome,
-        quantidade: parseInt(bloco.querySelector('.campo-item-quantidade').value) || 0,
+        quantidade,
         pagamento: bloco.querySelector('.campo-item-pagamento').value,
         valor: parseFloat(bloco.querySelector('.campo-item-valor').value) || 0,
       });
     });
 
-    if(itens.length === 0){
-      itensContainer.querySelector('.campo-item-nome').focus();
+    // não pode vender mais do que há em estoque (soma os itens repetidos do mesmo produto)
+    if(!erro){
+      for(const [nome, total] of somaPorProduto){
+        const disponivel = Number(porNome.get(nome).quantidade) || 0;
+        if(total > disponivel){
+          const campoNome = [...itensContainer.querySelectorAll('.campo-item-nome')].find(c => c.value === nome);
+          const campoQtd = campoNome.closest('.item-block').querySelector('.campo-item-quantidade');
+          falhar(
+            disponivel === 0
+              ? `"${nome}" está sem estoque.`
+              : `Estoque insuficiente de "${nome}": você está vendendo ${total} unid. e há só ${disponivel} em estoque.`,
+            campoQtd
+          );
+          break;
+        }
+      }
+    }
+
+    if(erro){
+      mostrarErro(erro);
+      campoComErro.focus();
       return;
     }
 

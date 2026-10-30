@@ -634,6 +634,7 @@
   .status-tag.vencido{ background:#FBE8E4; color:var(--tomato); }
   .status-tag.perto{ background:#FDF1DE; color:#B8790F; }
   .status-tag.ok{ background:#EAF3EC; color:var(--forest); }
+  .status-tag.sem{ background:var(--line); color:var(--muted); }
 
   .section-title{
     font-size:1.15rem;
@@ -907,15 +908,38 @@
     document.querySelectorAll('a.nav-item[href="financeiro.html"]').forEach(el => el.style.display = 'none');
   }
 
-  // ===== Dados dos produtos (mesmo exemplo usado na página Produtos) =====
-  const produtos = [
-    { id: 1, nome: 'Arroz 5kg', quantidade: 3, preco: 24.90, validade: '2026-12-01' },
-    { id: 2, nome: 'Óleo de soja 900ml', quantidade: 2, preco: 8.50, validade: '2027-03-15' },
-    { id: 3, nome: 'Feijão carioca 1kg', quantidade: 4, preco: 9.20, validade: '2026-11-20' },
-    { id: 4, nome: 'Café 500g', quantidade: 18, preco: 14.90, validade: '2027-01-10' },
-    { id: 5, nome: 'Leite integral 1L', quantidade: 22, preco: 5.20, validade: '2026-09-08' },
-    { id: 6, nome: 'Açúcar cristal 1kg', quantidade: 12, preco: 6.40, validade: '2026-08-20' },
+  // ===== Produtos: vêm da página Produtos =====
+  // O estoque mostra exatamente a lista cadastrada em Produtos (mesma chave do
+  // localStorage). Se nada foi salvo ainda, usa os mesmos exemplos de lá.
+  const CHAVE_PRODUTOS = 'produtosMercadinho';
+
+  const PRODUTOS_PADRAO = [
+    { id: 1, nome: 'Arroz 5kg', classe: 'Grãos', quantidade: 3, preco: 24.90, validade: '2026-12-01' },
+    { id: 2, nome: 'Óleo de soja 900ml', classe: 'Líquidos', quantidade: 2, preco: 8.50, validade: '2027-03-15' },
+    { id: 3, nome: 'Feijão carioca 1kg', classe: 'Grãos', quantidade: 4, preco: 9.20, validade: '2026-11-20' },
+    { id: 4, nome: 'Café 500g', classe: 'Mercearia', quantidade: 18, preco: 14.90, validade: '2027-01-10' },
+    { id: 5, nome: 'Leite integral 1L', classe: 'Líquidos', quantidade: 22, preco: 5.20, validade: '2026-10-05' },
   ];
+
+  function carregarProdutos(){
+    try{
+      const salvo = localStorage.getItem(CHAVE_PRODUTOS);
+      if(salvo !== null){
+        const lista = JSON.parse(salvo);
+        if(Array.isArray(lista)) return lista;
+      }
+    }catch(e){}
+    return PRODUTOS_PADRAO.map(p => ({ ...p }));
+  }
+
+  let produtos = carregarProdutos();
+
+  // evita que um nome com < > & quebre a tabela
+  function escapeHtml(texto){
+    return String(texto).replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
 
   // ===== Saídas de hoje (exemplo, só em memória) =====
   const saidasHoje = [
@@ -925,12 +949,15 @@
     { nome: 'Óleo de soja 900ml', quantidade: 4, horario: '16:30' },
   ];
 
+  // Em Produtos a validade é opcional, então pode vir vazia
   function formatarData(iso){
+    if(!iso) return '—';
     const [ano, mes, dia] = iso.split('-');
     return `${dia}/${mes}/${ano}`;
   }
 
   function diasAteVencer(iso){
+    if(!iso) return null;
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
     const validade = new Date(iso + 'T00:00:00');
@@ -939,6 +966,7 @@
   }
 
   function situacao(dias){
+    if(dias === null) return { texto: 'Sem validade', classe: 'sem' };
     if(dias < 0) return { texto: 'Vencido', classe: 'vencido' };
     if(dias <= 7) return { texto: 'Vence em breve', classe: 'perto' };
     return { texto: 'Em dia', classe: 'ok' };
@@ -950,8 +978,15 @@
   const emptyStateSaidas = document.getElementById('emptyStateSaidas');
 
   function renderEstoque(){
-    // ordena mostrando primeiro quem está mais perto de vencer
-    const ordenado = [...produtos].sort((a, b) => diasAteVencer(a.validade) - diasAteVencer(b.validade));
+    // ordena mostrando primeiro quem está mais perto de vencer (sem validade vai para o fim)
+    const ordenado = [...produtos].sort((a, b) => {
+      const da = diasAteVencer(a.validade);
+      const db = diasAteVencer(b.validade);
+      if(da === null && db === null) return 0;
+      if(da === null) return 1;
+      if(db === null) return -1;
+      return da - db;
+    });
 
     estoqueBody.innerHTML = '';
     if(ordenado.length === 0){
@@ -961,11 +996,13 @@
       ordenado.forEach(produto => {
         const dias = diasAteVencer(produto.validade);
         const st = situacao(dias);
-        const diasTexto = dias < 0 ? `${Math.abs(dias)} dia(s) atrás` : `${dias} dia(s)`;
+        const diasTexto = dias === null
+          ? '—'
+          : (dias < 0 ? `${Math.abs(dias)} dia(s) atrás` : `${dias} dia(s)`);
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${produto.nome}</td>
+          <td>${escapeHtml(produto.nome)}</td>
           <td>${produto.quantidade} unid.</td>
           <td>${formatarData(produto.validade)}</td>
           <td>${diasTexto}</td>
@@ -978,9 +1015,12 @@
     document.getElementById('statTotal').textContent = produtos.length;
     document.getElementById('statPerto').textContent = produtos.filter(p => {
       const d = diasAteVencer(p.validade);
-      return d >= 0 && d <= 7;
+      return d !== null && d >= 0 && d <= 7;
     }).length;
-    document.getElementById('statVencidos').textContent = produtos.filter(p => diasAteVencer(p.validade) < 0).length;
+    document.getElementById('statVencidos').textContent = produtos.filter(p => {
+      const d = diasAteVencer(p.validade);
+      return d !== null && d < 0;
+    }).length;
   }
 
   function renderSaidas(){
@@ -1005,6 +1045,21 @@
 
   renderEstoque();
   renderSaidas();
+
+  // Atualiza sozinho se Produtos mudar enquanto esta página está aberta (outra aba)
+  // ou se o usuário voltar para cá pelo botão "voltar" do navegador.
+  window.addEventListener('storage', (e) => {
+    if(e.key === CHAVE_PRODUTOS){
+      produtos = carregarProdutos();
+      renderEstoque();
+    }
+  });
+  window.addEventListener('pageshow', (e) => {
+    if(e.persisted){
+      produtos = carregarProdutos();
+      renderEstoque();
+    }
+  });
 
   // ===== Exportar CSV para Excel (por enquanto só visual — sem gerar arquivo de verdade ainda) =====
   const btnExportar = document.getElementById('btnExportar');
