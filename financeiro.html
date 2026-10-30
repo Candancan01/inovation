@@ -634,45 +634,102 @@
     document.querySelectorAll('a.nav-item[href="financeiro.html"]').forEach(el => el.style.display = 'none');
   }
 
-  // ===== Dados financeiros (exemplo, só em memória) =====
-  const recebimentosHoje = {
-    pix: 320.00,
-    dinheiro: 210.00,
-    debito: 150.00,
-    credito: 132.00
+  // ===== Dados financeiros: calculados a partir das vendas salvas em vendas.html =====
+  const CHAVE_VENDAS = 'vendasMercadinho';
+
+  // forma de pagamento (como aparece nas vendas) -> chave usada aqui
+  const CHAVES_PAGAMENTO = {
+    'Pix': 'pix',
+    'Dinheiro': 'dinheiro',
+    'Cartão de débito': 'debito',
+    'Cartão de crédito': 'credito'
   };
 
-  const totalSemana = 4360.00;
-  const totalMes = 15920.00;
-  const vendasHoje = 14;
+  const nomesMeses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 
   function formatarMoeda(valor){
     return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
-  const totalHoje = Object.values(recebimentosHoje).reduce((soma, v) => soma + v, 0);
+  // data local no formato AAAA-MM-DD (igual à usada em vendas.html)
+  function dataLocal(d = new Date()){
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
 
-  document.getElementById('valorHoje').textContent = formatarMoeda(totalHoje);
-  document.getElementById('vendasHojeTexto').textContent = `${vendasHoje} venda(s) hoje`;
-  document.getElementById('valorSemana').textContent = formatarMoeda(totalSemana);
-  document.getElementById('valorMes').textContent = formatarMoeda(totalMes);
+  function carregarVendas(){
+    try{
+      const salvo = localStorage.getItem(CHAVE_VENDAS);
+      if(salvo !== null){
+        const lista = JSON.parse(salvo);
+        if(Array.isArray(lista)) return lista;
+      }
+    }catch(e){}
+    return [];
+  }
 
-  const hoje = new Date();
-  const nomesMeses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-  document.getElementById('mesTexto').textContent = `Mês de ${nomesMeses[hoje.getMonth()]}`;
+  function totalDaVenda(venda){
+    return (venda.itens || []).reduce((soma, item) => soma + (Number(item.valor) || 0), 0);
+  }
 
-  function preencherFormaPagamento(chave, elId, barraId, percentId){
-    const valor = recebimentosHoje[chave];
+  function preencherFormaPagamento(valor, totalHoje, elId, barraId, percentId){
     const percentual = totalHoje > 0 ? Math.round((valor / totalHoje) * 100) : 0;
     document.getElementById(elId).textContent = formatarMoeda(valor);
     document.getElementById(barraId).style.width = percentual + '%';
     document.getElementById(percentId).textContent = percentual + '% do dia';
   }
 
-  preencherFormaPagamento('pix', 'valorPix', 'barraPix', 'percentPix');
-  preencherFormaPagamento('dinheiro', 'valorDinheiro', 'barraDinheiro', 'percentDinheiro');
-  preencherFormaPagamento('debito', 'valorDebito', 'barraDebito', 'percentDebito');
-  preencherFormaPagamento('credito', 'valorCredito', 'barraCredito', 'percentCredito');
+  function atualizarFinanceiro(){
+    const vendas = carregarVendas();
+
+    const agora = new Date();
+    const hoje = dataLocal(agora);
+    const inicioSemana = new Date(agora);
+    inicioSemana.setDate(inicioSemana.getDate() - 6);       // últimos 7 dias, contando hoje
+    const semanaDesde = dataLocal(inicioSemana);
+    const mesAtual = hoje.slice(0, 7);                       // AAAA-MM
+
+    const recebimentosHoje = { pix: 0, dinheiro: 0, debito: 0, credito: 0 };
+    let totalSemana = 0, totalMes = 0, vendasHoje = 0;
+
+    vendas.forEach(venda => {
+      const data = venda.data || '';
+
+      if(data === hoje){
+        vendasHoje++;
+        // cada item entra na forma de pagamento escolhida nele
+        (venda.itens || []).forEach(item => {
+          const chave = CHAVES_PAGAMENTO[item.pagamento];
+          if(chave) recebimentosHoje[chave] += Number(item.valor) || 0;
+        });
+      }
+      if(data >= semanaDesde && data <= hoje) totalSemana += totalDaVenda(venda);
+      if(data.slice(0, 7) === mesAtual)       totalMes += totalDaVenda(venda);
+    });
+
+    const totalHoje = Object.values(recebimentosHoje).reduce((soma, v) => soma + v, 0);
+
+    document.getElementById('valorHoje').textContent = formatarMoeda(totalHoje);
+    document.getElementById('vendasHojeTexto').textContent = `${vendasHoje} venda(s) hoje`;
+    document.getElementById('valorSemana').textContent = formatarMoeda(totalSemana);
+    document.getElementById('valorMes').textContent = formatarMoeda(totalMes);
+    document.getElementById('mesTexto').textContent = `Mês de ${nomesMeses[agora.getMonth()]}`;
+
+    preencherFormaPagamento(recebimentosHoje.pix,      totalHoje, 'valorPix',      'barraPix',      'percentPix');
+    preencherFormaPagamento(recebimentosHoje.dinheiro, totalHoje, 'valorDinheiro', 'barraDinheiro', 'percentDinheiro');
+    preencherFormaPagamento(recebimentosHoje.debito,   totalHoje, 'valorDebito',   'barraDebito',   'percentDebito');
+    preencherFormaPagamento(recebimentosHoje.credito,  totalHoje, 'valorCredito',  'barraCredito',  'percentCredito');
+  }
+
+  atualizarFinanceiro();
+
+  // se as vendas mudarem em outra aba/janela, atualiza esta tela na hora
+  window.addEventListener('storage', (e) => {
+    if(e.key === CHAVE_VENDAS || e.key === null) atualizarFinanceiro();
+  });
+  // e ao voltar para esta aba (ex.: depois de registrar uma venda)
+  document.addEventListener('visibilitychange', () => {
+    if(!document.hidden) atualizarFinanceiro();
+  });
 </script>
 
 </body>

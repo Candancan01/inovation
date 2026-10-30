@@ -1037,23 +1037,54 @@
     el.classList.remove('show');
   }
 
-  // ===== Dados das vendas (exemplo, só em memória) =====
-  let vendas = [
-    { id: 1, horario: '08:40', itens: [
-      { nome: 'Leite integral 1L', quantidade: 3, pagamento: 'Pix', valor: 15.60 }
-    ]},
-    { id: 2, horario: '10:15', itens: [
-      { nome: 'Café 500g', quantidade: 2, pagamento: 'Dinheiro', valor: 29.80 }
-    ]},
-    { id: 3, horario: '13:05', itens: [
-      { nome: 'Arroz 5kg', quantidade: 1, pagamento: 'Cartão de débito', valor: 24.90 },
-      { nome: 'Feijão carioca 1kg', quantidade: 2, pagamento: 'Cartão de débito', valor: 18.40 }
-    ]},
-    { id: 4, horario: '16:30', itens: [
-      { nome: 'Óleo de soja 900ml', quantidade: 4, pagamento: 'Cartão de crédito', valor: 34.00 }
-    ]},
-  ];
-  let proximoId = 5;
+  // ===== Dados das vendas: salvos no navegador (localStorage) =====
+  // A página Financeiro lê esta mesma chave, então qualquer venda registrada
+  // ou alterada aqui aparece lá automaticamente.
+  const CHAVE_VENDAS = 'vendasMercadinho';
+
+  // data local no formato AAAA-MM-DD (não usa toISOString para não errar o dia por causa do fuso)
+  function dataLocal(d = new Date()){
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  // exemplos usados só na primeira vez, quando ainda não há nada salvo
+  function vendasPadrao(){
+    const hoje = dataLocal();
+    return [
+      { id: 1, data: hoje, horario: '08:40', itens: [
+        { nome: 'Leite integral 1L', quantidade: 3, pagamento: 'Pix', valor: 15.60 }
+      ]},
+      { id: 2, data: hoje, horario: '10:15', itens: [
+        { nome: 'Café 500g', quantidade: 2, pagamento: 'Dinheiro', valor: 29.80 }
+      ]},
+      { id: 3, data: hoje, horario: '13:05', itens: [
+        { nome: 'Arroz 5kg', quantidade: 1, pagamento: 'Cartão de débito', valor: 24.90 },
+        { nome: 'Feijão carioca 1kg', quantidade: 2, pagamento: 'Cartão de débito', valor: 18.40 }
+      ]},
+      { id: 4, data: hoje, horario: '16:30', itens: [
+        { nome: 'Óleo de soja 900ml', quantidade: 4, pagamento: 'Cartão de crédito', valor: 34.00 }
+      ]},
+    ];
+  }
+
+  function carregarVendas(){
+    try{
+      const salvo = localStorage.getItem(CHAVE_VENDAS);
+      if(salvo !== null){
+        const lista = JSON.parse(salvo);
+        if(Array.isArray(lista)) return lista;
+      }
+    }catch(e){}
+    return vendasPadrao();
+  }
+
+  function salvarVendas(){
+    try{ localStorage.setItem(CHAVE_VENDAS, JSON.stringify(vendas)); }catch(e){}
+  }
+
+  let vendas = carregarVendas();
+  let proximoId = vendas.reduce((maior, v) => Math.max(maior, Number(v.id) || 0), 0) + 1;
+  salvarVendas();   // grava os exemplos na primeira abertura, para o Financeiro já enxergar
 
   // modo: null | 'alterar'
   let modo = null;
@@ -1093,13 +1124,17 @@
   function renderizarVendas(){
     vendasBody.innerHTML = '';
 
-    if(vendas.length === 0){
+    // esta tela é "vendas do dia": mostra só as de hoje (as de outros dias continuam salvas para o Financeiro)
+    const hoje = dataLocal();
+    const vendasHoje = vendas.filter(v => v.data === hoje);
+
+    if(vendasHoje.length === 0){
       emptyState.style.display = 'block';
     } else {
       emptyState.style.display = 'none';
 
       // mostra as vendas mais recentes primeiro
-      const ordenado = [...vendas].sort((a, b) => b.horario.localeCompare(a.horario));
+      const ordenado = [...vendasHoje].sort((a, b) => b.horario.localeCompare(a.horario));
 
       ordenado.forEach(venda => {
         const tr = document.createElement('tr');
@@ -1121,10 +1156,10 @@
       });
     }
 
-    const totalHoje = vendas.reduce((soma, v) => soma + totalDaVenda(v), 0);
-    document.getElementById('statQtdVendas').textContent = vendas.length;
+    const totalHoje = vendasHoje.reduce((soma, v) => soma + totalDaVenda(v), 0);
+    document.getElementById('statQtdVendas').textContent = vendasHoje.length;
     document.getElementById('statValorHoje').textContent = formatarMoeda(totalHoje);
-    document.getElementById('statTicketMedio').textContent = formatarMoeda(vendas.length ? totalHoje / vendas.length : 0);
+    document.getElementById('statTicketMedio').textContent = formatarMoeda(vendasHoje.length ? totalHoje / vendasHoje.length : 0);
   }
 
   // ===== Cria um bloco de item dentro do modal =====
@@ -1387,8 +1422,10 @@
     } else {
       const agora = new Date();
       const horario = agora.getHours().toString().padStart(2, '0') + ':' + agora.getMinutes().toString().padStart(2, '0');
-      vendas.push({ id: proximoId++, horario, itens });
+      vendas.push({ id: proximoId++, data: dataLocal(agora), horario, itens });
     }
+
+    salvarVendas();   // o Financeiro lê estes dados e se atualiza sozinho
 
     fecharModalVendaFn();
     sairDoModoSelecao();
