@@ -651,6 +651,7 @@
     margin-bottom:0.2rem;
   }
   .stat-label{ font-size:0.9rem; font-weight:700; color:var(--muted); }
+  .stat-value.texto{ font-size:1.3rem; line-height:1.25; overflow-wrap:anywhere; }
 
   @media (max-width:900px){ .stats-grid{ grid-template-columns:1fr; } }
 
@@ -903,8 +904,8 @@
           <div class="stat-icon blue">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-5 9 5-9 5-9-5z" stroke="#2C6B4F" stroke-width="2" stroke-linejoin="round"/><path d="M3 9v7l9 5 9-5V9" stroke="#2C6B4F" stroke-width="2" stroke-linejoin="round"/></svg>
           </div>
-          <div class="stat-value" id="statTicketMedio">R$ 0,00</div>
-          <div class="stat-label">Ticket médio</div>
+          <div class="stat-value texto" id="statProdutoMaisVendido">—</div>
+          <div class="stat-label" id="statProdutoMaisVendidoLabel">Produto mais vendido</div>
         </div>
       </div>
 
@@ -1086,6 +1087,46 @@
   let proximoId = vendas.reduce((maior, v) => Math.max(maior, Number(v.id) || 0), 0) + 1;
   salvarVendas();   // grava os exemplos na primeira abertura, para o Financeiro já enxergar
 
+  // ===== Baixa no estoque =====
+  // Registrar uma venda tira as quantidades vendidas do estoque (lista da página Produtos).
+  // Alterar uma venda aplica só a DIFERENÇA: o que foi devolvido volta, o que passou a ser vendido sai.
+  function salvarProdutos(lista){
+    try{ localStorage.setItem(CHAVE_PRODUTOS, JSON.stringify(lista)); }catch(e){}
+  }
+
+  // soma a quantidade vendida de cada produto (o mesmo produto pode aparecer em mais de um item)
+  function somarPorProduto(itens){
+    const mapa = new Map();
+    itens.forEach(i => {
+      if(!i.nome) return;
+      mapa.set(i.nome, (mapa.get(i.nome) || 0) + (Number(i.quantidade) || 0));
+    });
+    return mapa;
+  }
+
+  function ajustarEstoque(itensAntigos, itensNovos){
+    const lista = carregarProdutos();
+    const antigo = somarPorProduto(itensAntigos);
+    const novo = somarPorProduto(itensNovos);
+
+    new Set([...antigo.keys(), ...novo.keys()]).forEach(nome => {
+      const saiuAMais = (novo.get(nome) || 0) - (antigo.get(nome) || 0);   // positivo = saiu mais; negativo = voltou
+      if(saiuAMais === 0) return;
+      const produto = lista.find(p => p.nome === nome);   // o mesmo produto que a validação usa
+      if(!produto) return;                                  // produto apagado em Produtos: nada a ajustar
+      produto.quantidade = Math.max(0, (Number(produto.quantidade) || 0) - saiuAMais);
+    });
+
+    salvarProdutos(lista);
+  }
+
+  // ao alterar uma venda, as unidades dela já saíram do estoque: contam como disponíveis de novo
+  function quantidadeDaVendaOriginal(nome){
+    if(!vendaSelecionadaId) return 0;
+    const venda = vendas.find(v => v.id === vendaSelecionadaId);
+    return venda ? (somarPorProduto(venda.itens).get(nome) || 0) : 0;
+  }
+
   // modo: null | 'alterar'
   let modo = null;
   let vendaSelecionadaId = null;
@@ -1159,7 +1200,29 @@
     const totalHoje = vendasHoje.reduce((soma, v) => soma + totalDaVenda(v), 0);
     document.getElementById('statQtdVendas').textContent = vendasHoje.length;
     document.getElementById('statValorHoje').textContent = formatarMoeda(totalHoje);
-    document.getElementById('statTicketMedio').textContent = formatarMoeda(vendasHoje.length ? totalHoje / vendasHoje.length : 0);
+
+    // produto mais vendido do dia: o que teve mais unidades vendidas (empate: o que rendeu mais)
+    const porProduto = new Map();
+    vendasHoje.forEach(venda => venda.itens.forEach(item => {
+      if(!item.nome) return;
+      const atual = porProduto.get(item.nome) || { quantidade: 0, valor: 0 };
+      atual.quantidade += Number(item.quantidade) || 0;
+      atual.valor += Number(item.valor) || 0;
+      porProduto.set(item.nome, atual);
+    }));
+
+    let maisVendido = null;
+    porProduto.forEach((dados, nome) => {
+      if(!maisVendido || dados.quantidade > maisVendido.quantidade ||
+         (dados.quantidade === maisVendido.quantidade && dados.valor > maisVendido.valor)){
+        maisVendido = { nome, ...dados };
+      }
+    });
+
+    document.getElementById('statProdutoMaisVendido').textContent = maisVendido ? maisVendido.nome : '—';
+    document.getElementById('statProdutoMaisVendidoLabel').textContent = maisVendido
+      ? `Produto mais vendido (${maisVendido.quantidade} unid.)`
+      : 'Produto mais vendido';
   }
 
   // ===== Cria um bloco de item dentro do modal =====
@@ -1251,14 +1314,15 @@
       hintEstoque.classList.add('bad');
       hintPreco.textContent = '';
     } else {
-      const disponivel = Number(produto.quantidade) || 0;
+      const devolvida = quantidadeDaVendaOriginal(nome);
+      const disponivel = (Number(produto.quantidade) || 0) + devolvida;
       const preco = Number(produto.preco) || 0;
       hintPreco.textContent = `Preço unitário: ${formatarMoeda(preco)}`;
       if(quantidade > disponivel){
         hintEstoque.textContent = disponivel === 0 ? 'Sem estoque deste produto.' : `Só há ${disponivel} unid. em estoque.`;
         hintEstoque.classList.add('bad');
       } else {
-        hintEstoque.textContent = `Em estoque: ${disponivel} unid.`;
+        hintEstoque.textContent = devolvida > 0 ? `Disponível para esta venda: ${disponivel} unid.` : `Em estoque: ${disponivel} unid.`;
       }
     }
 
@@ -1395,7 +1459,7 @@
     // não pode vender mais do que há em estoque (soma os itens repetidos do mesmo produto)
     if(!erro){
       for(const [nome, total] of somaPorProduto){
-        const disponivel = Number(porNome.get(nome).quantidade) || 0;
+        const disponivel = (Number(porNome.get(nome).quantidade) || 0) + quantidadeDaVendaOriginal(nome);
         if(total > disponivel){
           const campoNome = [...itensContainer.querySelectorAll('.campo-item-nome')].find(c => c.value === nome);
           const campoQtd = campoNome.closest('.item-block').querySelector('.campo-item-quantidade');
@@ -1416,8 +1480,10 @@
       return;
     }
 
+    let itensAntigos = [];   // itens da venda antes da alteração (vazio numa venda nova)
     if(vendaSelecionadaId){
       const venda = vendas.find(v => v.id === vendaSelecionadaId);
+      itensAntigos = venda.itens;
       venda.itens = itens;
     } else {
       const agora = new Date();
@@ -1425,7 +1491,8 @@
       vendas.push({ id: proximoId++, data: dataLocal(agora), horario, itens });
     }
 
-    salvarVendas();   // o Financeiro lê estes dados e se atualiza sozinho
+    ajustarEstoque(itensAntigos, itens);   // dá baixa (ou devolve a diferença) no estoque
+    salvarVendas();                        // o Financeiro lê estes dados e se atualiza sozinho
 
     fecharModalVendaFn();
     sairDoModoSelecao();

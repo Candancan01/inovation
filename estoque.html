@@ -941,13 +941,35 @@
     ));
   }
 
-  // ===== Saídas de hoje (exemplo, só em memória) =====
-  const saidasHoje = [
-    { nome: 'Leite integral 1L', quantidade: 3, horario: '08:40' },
-    { nome: 'Café 500g', quantidade: 2, horario: '10:15' },
-    { nome: 'Arroz 5kg', quantidade: 1, horario: '13:05' },
-    { nome: 'Óleo de soja 900ml', quantidade: 4, horario: '16:30' },
-  ];
+  // ===== Saídas de hoje: vêm das vendas registradas em Vendas =====
+  // Cada item vendido hoje é uma saída. Se a venda for alterada, esta lista acompanha.
+  const CHAVE_VENDAS = 'vendasMercadinho';
+
+  // data local no formato AAAA-MM-DD (igual à usada em vendas.html)
+  function dataLocal(d = new Date()){
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  function carregarSaidasHoje(){
+    let vendas = [];
+    try{
+      const salvo = localStorage.getItem(CHAVE_VENDAS);
+      if(salvo !== null){
+        const lista = JSON.parse(salvo);
+        if(Array.isArray(lista)) vendas = lista;
+      }
+    }catch(e){}
+
+    const hoje = dataLocal();
+    const saidas = [];
+    vendas.filter(v => v.data === hoje).forEach(venda => {
+      (venda.itens || []).forEach(item => {
+        saidas.push({ nome: item.nome, quantidade: Number(item.quantidade) || 0, horario: venda.horario });
+      });
+    });
+    // mais recentes primeiro
+    return saidas.sort((a, b) => String(b.horario).localeCompare(String(a.horario)));
+  }
 
   // Em Produtos a validade é opcional, então pode vir vazia
   function formatarData(iso){
@@ -1024,6 +1046,7 @@
   }
 
   function renderSaidas(){
+    const saidasHoje = carregarSaidasHoje();
     saidasBody.innerHTML = '';
     if(saidasHoje.length === 0){
       emptyStateSaidas.style.display = 'block';
@@ -1032,7 +1055,7 @@
       saidasHoje.forEach(saida => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${saida.nome}</td>
+          <td>${escapeHtml(saida.nome)}</td>
           <td class="saida-qtd">-${saida.quantidade} unid.</td>
           <td class="saida-hora">${saida.horario}</td>
         `;
@@ -1048,17 +1071,20 @@
 
   // Atualiza sozinho se Produtos mudar enquanto esta página está aberta (outra aba)
   // ou se o usuário voltar para cá pelo botão "voltar" do navegador.
+  // Uma venda mexe nos dois: baixa a quantidade em Produtos e cria a saída em Vendas.
+  function atualizarTudo(){
+    produtos = carregarProdutos();
+    renderEstoque();
+    renderSaidas();
+  }
   window.addEventListener('storage', (e) => {
-    if(e.key === CHAVE_PRODUTOS){
-      produtos = carregarProdutos();
-      renderEstoque();
-    }
+    if(e.key === CHAVE_PRODUTOS || e.key === CHAVE_VENDAS || e.key === null) atualizarTudo();
   });
   window.addEventListener('pageshow', (e) => {
-    if(e.persisted){
-      produtos = carregarProdutos();
-      renderEstoque();
-    }
+    if(e.persisted) atualizarTudo();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if(!document.hidden) atualizarTudo();
   });
 
   // ===== Exportar CSV para Excel (por enquanto só visual — sem gerar arquivo de verdade ainda) =====
