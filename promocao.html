@@ -641,6 +641,42 @@
     margin-right:0.4rem;
   }
   .preco-promo{ color:var(--tomato); font-weight:800; }
+
+  .modal-card{ max-height:calc(100vh - 2.5rem); overflow-y:auto; }
+
+  /* produto esgotado: cinza e travado até receber mais unidades */
+  .products-table tbody tr.esgotado td{ background:#ECE9E2; color:#9A9486; cursor:not-allowed; }
+  .products-table tbody tr.esgotado .preco-riscado,
+  .products-table tbody tr.esgotado .preco-promo{ color:#9A9486; }
+  .products-table tbody tr.esgotado .status-tag{ background:#DCD7CA; color:#8C8576; }
+  .esgotado-badge{
+    font-family:'Space Mono', monospace;
+    font-size:0.68rem;
+    padding:0.15rem 0.5rem;
+    border-radius:999px;
+    background:#B9B2A2;
+    color:#fff;
+    font-weight:700;
+    margin-left:0.5rem;
+    white-space:nowrap;
+  }
+  .modal-field select{
+    width:100%;
+    font-family:'Nunito', sans-serif;
+    font-size:1.05rem;
+    font-weight:700;
+    padding:0.8rem 0.95rem;
+    border:2px solid var(--line);
+    border-radius:0.85rem;
+    color:var(--charcoal);
+    background:var(--cream);
+    outline:none;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .modal-field select:focus{ border-color:var(--focus); background:#fff; }
+  .modal-field input[readonly]{ background:#F1EBDA; color:var(--muted); cursor:not-allowed; }
+  .modal-hint{ font-size:0.85rem; font-weight:700; color:var(--muted); margin-top:0.35rem; }
+  .modal-erro{ color:var(--tomato); font-weight:800; font-size:0.92rem; min-height:1.2rem; margin-bottom:0.5rem; }
 </style>
 </head>
 <body>
@@ -770,21 +806,27 @@
 
     <form id="formProduto" onsubmit="return false;">
       <div class="modal-field">
-        <label for="campoNome">Nome do produto</label>
-        <input type="text" id="campoNome" placeholder="Ex: Arroz 5kg">
+        <label for="campoProduto">Produto</label>
+        <select id="campoProduto"></select>
+        <div class="modal-hint">Só aparecem produtos já cadastrados no estoque.</div>
       </div>
       <div class="modal-field">
         <label for="campoPrecoOriginal">Preço original</label>
-        <input type="number" id="campoPrecoOriginal" min="0" step="0.01" placeholder="Ex: 24.90">
+        <input type="text" id="campoPrecoOriginal" readonly placeholder="Escolha um produto">
       </div>
       <div class="modal-field">
         <label for="campoDesconto">Desconto (%)</label>
-        <input type="number" id="campoDesconto" min="0" max="100" placeholder="Ex: 15">
+        <input type="number" id="campoDesconto" min="1" max="100" placeholder="Ex: 15">
+      </div>
+      <div class="modal-field">
+        <label for="campoPrecoPromo">Preço na promoção</label>
+        <input type="text" id="campoPrecoPromo" readonly placeholder="Calculado automaticamente">
       </div>
       <div class="modal-field">
         <label for="campoValidade">Válida até</label>
         <input type="date" id="campoValidade">
       </div>
+      <div class="modal-erro" id="modalErro" role="alert"></div>
       <button type="submit" class="modal-save" id="btnSalvarProduto">Salvar</button>
     </form>
   </div>
@@ -826,13 +868,79 @@
     document.querySelectorAll('a.nav-item[href="financeiro.html"]').forEach(el => el.style.display = 'none');
   }
 
-  // ===== Dados das promoções (exemplo, só em memória) =====
-  let promocoes = [
-    { id: 1, nome: 'Arroz 5kg', precoOriginal: 24.90, desconto: 15, validade: '2026-09-20' },
-    { id: 2, nome: 'Óleo de soja 900ml', precoOriginal: 8.50, desconto: 10, validade: '2026-09-10' },
-    { id: 3, nome: 'Café 500g', precoOriginal: 14.90, desconto: 20, validade: '2026-08-25' },
+  // ===== Produtos: vêm da página Produtos (mesma chave usada no Estoque) =====
+  const CHAVE_PRODUTOS = 'produtosMercadinho';
+  const CHAVE_PROMOCOES = 'promocoesMercadinho';
+
+  const PRODUTOS_PADRAO = [
+    { id: 1, nome: 'Arroz 5kg', classe: 'Grãos', quantidade: 3, preco: 24.90, validade: '2026-12-01' },
+    { id: 2, nome: 'Óleo de soja 900ml', classe: 'Líquidos', quantidade: 2, preco: 8.50, validade: '2027-03-15' },
+    { id: 3, nome: 'Feijão carioca 1kg', classe: 'Grãos', quantidade: 4, preco: 9.20, validade: '2026-11-20' },
+    { id: 4, nome: 'Café 500g', classe: 'Mercearia', quantidade: 18, preco: 14.90, validade: '2027-01-10' },
+    { id: 5, nome: 'Leite integral 1L', classe: 'Líquidos', quantidade: 22, preco: 5.20, validade: '2026-10-05' },
   ];
-  let proximoId = 4;
+
+  function carregarProdutos(){
+    try{
+      const salvo = localStorage.getItem(CHAVE_PRODUTOS);
+      if(salvo !== null){
+        const lista = JSON.parse(salvo);
+        if(Array.isArray(lista)) return lista;
+      }
+    }catch(e){}
+    return PRODUTOS_PADRAO.map(p => ({ ...p }));
+  }
+
+  function escapeHtml(texto){
+    return String(texto).replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+
+  // ===== Promoções: ficam salvas e o Estoque lê a mesma chave =====
+  // Guardamos só o produto (id), o desconto e a validade. O preço original vem
+  // sempre de Produtos, então se o preço mudar lá a promoção acompanha.
+  const PROMOCOES_PADRAO = [
+    { id: 1, produtoId: 1, desconto: 15, validade: '2026-09-20' },
+    { id: 2, produtoId: 2, desconto: 10, validade: '2026-09-10' },
+    { id: 3, produtoId: 4, desconto: 20, validade: '2026-08-25' },
+  ];
+
+  let produtos = carregarProdutos();
+
+  function carregarPromocoes(){
+    try{
+      const salvo = localStorage.getItem(CHAVE_PROMOCOES);
+      if(salvo !== null){
+        const lista = JSON.parse(salvo);
+        if(Array.isArray(lista)) return lista;
+      }
+    }catch(e){}
+    return PROMOCOES_PADRAO.map(p => ({ ...p }));
+  }
+
+  // promoção de um produto que foi apagado de Produtos não tem mais sentido
+  function limparOrfas(lista){
+    return lista.filter(pr => produtos.some(p => p.id === pr.produtoId));
+  }
+
+  function salvarPromocoes(){
+    try{ localStorage.setItem(CHAVE_PROMOCOES, JSON.stringify(promocoes)); }catch(e){}
+  }
+
+  let promocoes = limparOrfas(carregarPromocoes());
+  let proximoId = promocoes.reduce((m, p) => Math.max(m, p.id), 0) + 1;
+  salvarPromocoes();
+
+  function produtoDaPromocao(promo){
+    return produtos.find(p => p.id === promo.produtoId);
+  }
+
+  // produto sem unidades em estoque: não dá para criar, alterar nem remover a promoção dele
+  function esgotado(prod){
+    return !!prod && (Number(prod.quantidade) || 0) <= 0;
+  }
+  const MSG_ESGOTADO = 'Produto esgotado: a promoção fica travada até o produto receber mais unidades em "Produtos".';
 
   // modo: null | 'alterar' | 'remover'
   let modo = null;
@@ -850,7 +958,9 @@
   const modalProduto = document.getElementById('modalProduto');
   const modalTitulo = document.getElementById('modalTitulo');
   const formProduto = document.getElementById('formProduto');
-  const campoNome = document.getElementById('campoNome');
+  const campoProduto = document.getElementById('campoProduto');
+  const campoPrecoPromo = document.getElementById('campoPrecoPromo');
+  const modalErro = document.getElementById('modalErro');
   const campoPrecoOriginal = document.getElementById('campoPrecoOriginal');
   const campoDesconto = document.getElementById('campoDesconto');
   const campoValidade = document.getElementById('campoValidade');
@@ -872,7 +982,9 @@
   }
 
   function precoComDesconto(promo){
-    return promo.precoOriginal * (1 - promo.desconto / 100);
+    const prod = produtoDaPromocao(promo);
+    const original = prod ? Number(prod.preco) || 0 : 0;
+    return Math.round(original * (1 - promo.desconto / 100) * 100) / 100;
   }
 
   function promocaoExpirada(promo){
@@ -899,10 +1011,16 @@
       }
 
       const expirada = promocaoExpirada(promo);
+      const prod = produtoDaPromocao(promo);
+      const semEstoque = esgotado(prod);
+      if(semEstoque){
+        tr.classList.add('esgotado');
+        tr.title = 'Produto esgotado';
+      }
 
       tr.innerHTML = `
-        <td>${promo.nome}</td>
-        <td><span class="preco-riscado">${formatarPreco(promo.precoOriginal)}</span><span class="preco-promo">${formatarPreco(precoComDesconto(promo))}</span></td>
+        <td>${escapeHtml(prod.nome)}${semEstoque ? '<span class="esgotado-badge">ESGOTADO</span>' : ''}</td>
+        <td><span class="preco-riscado">${formatarPreco(Number(prod.preco) || 0)}</span><span class="preco-promo">${formatarPreco(precoComDesconto(promo))}</span></td>
         <td>${promo.desconto}%</td>
         <td>${formatarData(promo.validade)}</td>
         <td><span class="status-tag ${expirada ? 'expirada' : 'ativa'}">${expirada ? 'Expirada' : 'Ativa'}</span></td>
@@ -916,10 +1034,10 @@
     sairDoModoSelecao();
     promocaoSelecionadaId = null;
     modalTitulo.textContent = 'Adicionar promoção';
-    campoNome.value = '';
-    campoPrecoOriginal.value = '';
+    preencherSelectProdutos(null);
     campoDesconto.value = '';
     campoValidade.value = '';
+    atualizarPrecos();
     abrirModalProduto();
   });
 
@@ -958,27 +1076,65 @@
 
   function selecionarPromocao(id){
     const promo = promocoes.find(p => p.id === id);
-    if(!promo) return;
+    if(!promo || !produtoDaPromocao(promo)) return;
+    if(esgotado(produtoDaPromocao(promo))){
+      selectBannerText.textContent = MSG_ESGOTADO;
+      return;
+    }
 
     if(modo === 'alterar'){
       promocaoSelecionadaId = id;
       modalTitulo.textContent = 'Alterar promoção';
-      campoNome.value = promo.nome;
-      campoPrecoOriginal.value = promo.precoOriginal;
+      preencherSelectProdutos(promo.produtoId);
       campoDesconto.value = promo.desconto;
       campoValidade.value = promo.validade;
+      atualizarPrecos();
       abrirModalProduto();
     } else if(modo === 'remover'){
       promocaoSelecionadaId = id;
-      nomeProdutoExcluir.textContent = promo.nome;
+      nomeProdutoExcluir.textContent = produtoDaPromocao(promo).nome;
       modalExcluir.classList.add('show');
     }
   }
 
   // ===== Modal Adicionar/Alterar =====
+  function preencherSelectProdutos(selecionadoId){
+    produtos = carregarProdutos();
+    campoProduto.innerHTML = '';
+    if(produtos.length === 0){
+      campoProduto.innerHTML = '<option value="">Nenhum produto cadastrado</option>';
+      campoProduto.disabled = true;
+      return;
+    }
+    campoProduto.disabled = false;
+    campoProduto.innerHTML = '<option value="">Selecione um produto</option>' +
+      produtos.map(p => {
+        const sem = esgotado(p);
+        return `<option value="${p.id}" ${sem ? 'disabled' : ''}>${escapeHtml(p.nome)}${sem ? ' (esgotado)' : ''}</option>`;
+      }).join('');
+    campoProduto.value = selecionadoId === null ? '' : String(selecionadoId);
+  }
+
+  function atualizarPrecos(){
+    modalErro.textContent = '';
+    const prod = produtos.find(p => String(p.id) === campoProduto.value);
+    if(!prod){
+      campoPrecoOriginal.value = '';
+      campoPrecoPromo.value = '';
+      return;
+    }
+    const original = Number(prod.preco) || 0;
+    const desc = Math.min(100, Math.max(0, parseInt(campoDesconto.value) || 0));
+    campoPrecoOriginal.value = formatarPreco(original);
+    campoPrecoPromo.value = formatarPreco(Math.round(original * (1 - desc / 100) * 100) / 100);
+  }
+  campoProduto.addEventListener('change', atualizarPrecos);
+  campoDesconto.addEventListener('input', atualizarPrecos);
+
   function abrirModalProduto(){
+    modalErro.textContent = '';
     modalProduto.classList.add('show');
-    campoNome.focus();
+    campoProduto.focus();
   }
   function fecharModalProdutoFn(){
     modalProduto.classList.remove('show');
@@ -987,15 +1143,33 @@
   modalProduto.addEventListener('click', (e) => { if(e.target === modalProduto) fecharModalProdutoFn(); });
 
   formProduto.addEventListener('submit', () => {
-    const nome = campoNome.value.trim();
-    if(!nome) { campoNome.focus(); return; }
+    const prod = produtos.find(p => String(p.id) === campoProduto.value);
+    if(!prod){
+      modalErro.textContent = 'Escolha um produto cadastrado no estoque.';
+      campoProduto.focus();
+      return;
+    }
+    if(esgotado(prod)){
+      modalErro.textContent = MSG_ESGOTADO;
+      return;
+    }
+    const desconto = parseInt(campoDesconto.value);
+    if(!desconto || desconto < 1 || desconto > 100){
+      modalErro.textContent = 'Informe um desconto entre 1% e 100%.';
+      campoDesconto.focus();
+      return;
+    }
 
-    const dados = {
-      nome,
-      precoOriginal: parseFloat(campoPrecoOriginal.value) || 0,
-      desconto: Math.min(100, Math.max(0, parseInt(campoDesconto.value) || 0)),
-      validade: campoValidade.value,
-    };
+    const dados = { produtoId: prod.id, desconto, validade: campoValidade.value };
+
+    // um produto não pode ter duas promoções ativas ao mesmo tempo
+    const duplicada = promocoes.some(p =>
+      p.produtoId === prod.id && p.id !== promocaoSelecionadaId &&
+      !promocaoExpirada(p) && !promocaoExpirada(dados));
+    if(duplicada){
+      modalErro.textContent = 'Este produto já tem uma promoção ativa. Altere ou remova a existente.';
+      return;
+    }
 
     if(promocaoSelecionadaId){
       const promo = promocoes.find(p => p.id === promocaoSelecionadaId);
@@ -1003,6 +1177,7 @@
     } else {
       promocoes.push({ id: proximoId++, ...dados });
     }
+    salvarPromocoes();
 
     fecharModalProdutoFn();
     sairDoModoSelecao();
@@ -1018,11 +1193,24 @@
   });
   confirmarExclusao.addEventListener('click', () => {
     promocoes = promocoes.filter(p => p.id !== promocaoSelecionadaId);
+    salvarPromocoes();
     modalExcluir.classList.remove('show');
     sairDoModoSelecao();
   });
 
   renderizarPromocoes();
+
+  // Se Produtos mudar (outra aba, ou ao voltar para esta página), atualiza a lista
+  function atualizarDeProdutos(){
+    produtos = carregarProdutos();
+    promocoes = limparOrfas(carregarPromocoes());
+    salvarPromocoes();
+    renderizarPromocoes();
+  }
+  window.addEventListener('storage', (e) => {
+    if(e.key === CHAVE_PRODUTOS || e.key === CHAVE_PROMOCOES || e.key === null) atualizarDeProdutos();
+  });
+  window.addEventListener('pageshow', (e) => { if(e.persisted) atualizarDeProdutos(); });
 </script>
 
 </body>

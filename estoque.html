@@ -667,6 +667,53 @@
   }
   .saida-qtd{ color:var(--tomato); }
 
+  /* ===== Produto em promoção ===== */
+  .products-table tbody tr.promo td{ background:#FDF1DE; }
+  .products-table tbody tr.promo td:first-child{ box-shadow:inset 4px 0 0 var(--mustard); }
+  .products-table tbody tr.promo:hover td{ background:#FAE5C0; }
+  .preco-riscado{ text-decoration:line-through; color:var(--muted); font-weight:600; margin-right:0.4rem; }
+  .preco-promo{ color:var(--tomato); font-weight:800; }
+  .promo-badge{
+    font-family:'Space Mono', monospace;
+    font-size:0.68rem;
+    padding:0.15rem 0.5rem;
+    border-radius:999px;
+    background:var(--mustard);
+    color:var(--forest-dark);
+    font-weight:700;
+    margin-left:0.5rem;
+    white-space:nowrap;
+  }
+  /* ===== Produto esgotado (quantidade 0): cinza e travado ===== */
+  .products-table tbody tr.esgotado td{ background:#ECE9E2; color:#9A9486; cursor:not-allowed; }
+  .products-table tbody tr.esgotado td:first-child{ box-shadow:inset 4px 0 0 #B9B2A2; }
+  .products-table tbody tr.esgotado .status-tag{ background:#DCD7CA; color:#8C8576; }
+  .esgotado-badge{
+    font-family:'Space Mono', monospace;
+    font-size:0.68rem;
+    padding:0.15rem 0.5rem;
+    border-radius:999px;
+    background:#B9B2A2;
+    color:#fff;
+    font-weight:700;
+    margin-left:0.5rem;
+    white-space:nowrap;
+  }
+  .tooltip-promo{
+    position:fixed;
+    z-index:100;
+    display:none;
+    pointer-events:none;
+    background:var(--charcoal);
+    color:var(--cream);
+    font-weight:800;
+    font-size:0.85rem;
+    padding:0.45rem 0.8rem;
+    border-radius:0.6rem;
+    box-shadow:0 0.5rem 1.2rem rgba(0,0,0,0.25);
+    white-space:nowrap;
+  }
+
   /* ===== Importar CSV para Excel ===== */
   .import-panel{
     margin-top:2rem;
@@ -843,6 +890,7 @@
             <tr>
               <th>Produto</th>
               <th>Quantidade</th>
+              <th>Preço</th>
               <th>Validade</th>
               <th>Dias até vencer</th>
               <th>Situação</th>
@@ -870,6 +918,21 @@
 
       <div class="import-panel">
         <div class="import-text">
+          <h2>Importar produtos</h2>
+          <p>Envie um arquivo CSV com as colunas <strong>produto, quantidade, preço e validade</strong> (nessa ordem ou em outra). Exemplo de linha: <em>Arroz 5kg;10;24,90;31/12/2026</em>. Produtos que já existem no estoque (ou repetidos no arquivo) são pulados; se alguma linha tiver dados inválidos, nada é importado.</p>
+        </div>
+        <div class="import-actions">
+          <input type="file" id="arquivoCsv" accept=".csv,text/csv" style="display:none;">
+          <button class="import-btn" id="btnImportar" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v12M7 10l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Importar CSV
+          </button>
+        </div>
+        <p class="import-feedback" id="importFeedback" style="white-space:pre-line;"></p>
+      </div>
+
+      <div class="import-panel">
+        <div class="import-text">
           <h2>Exportar planilha</h2>
           <p>Ao clicar, vamos lançar um arquivo CSV para o Excel com todas as informações de hoje: nome do produto, quantidade e valor arrecadado em cada venda.</p>
         </div>
@@ -886,6 +949,8 @@
   </div>
 
 </div>
+
+<div class="tooltip-promo" id="tooltipPromo" role="tooltip"></div>
 
 <script>
   // Controle de tamanho da letra (acessibilidade)
@@ -971,6 +1036,38 @@
     return saidas.sort((a, b) => String(b.horario).localeCompare(String(a.horario)));
   }
 
+  // ===== Promoções: vêm da página Promoção =====
+  // Só vale promoção ativa (não expirada). Se o produto tiver mais de uma, vale o maior desconto.
+  const CHAVE_PROMOCOES = 'promocoesMercadinho';
+
+  function carregarPromocoes(){
+    try{
+      const salvo = localStorage.getItem(CHAVE_PROMOCOES);
+      if(salvo !== null){
+        const lista = JSON.parse(salvo);
+        if(Array.isArray(lista)) return lista;
+      }
+    }catch(e){}
+    return [];
+  }
+
+  function promocaoAtiva(promo){
+    if(!promo.validade) return true;
+    const hoje = new Date();
+    hoje.setHours(0,0,0,0);
+    return new Date(promo.validade + 'T00:00:00') >= hoje;
+  }
+
+  function promocaoDoProduto(produto, promocoes){
+    return promocoes
+      .filter(pr => pr.produtoId === produto.id && promocaoAtiva(pr))
+      .sort((a, b) => b.desconto - a.desconto)[0] || null;
+  }
+
+  function formatarPreco(valor){
+    return (Number(valor) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
   // Em Produtos a validade é opcional, então pode vir vazia
   function formatarData(iso){
     if(!iso) return '—';
@@ -1010,6 +1107,8 @@
       return da - db;
     });
 
+    const promocoes = carregarPromocoes();
+
     estoqueBody.innerHTML = '';
     if(ordenado.length === 0){
       emptyState.style.display = 'block';
@@ -1022,10 +1121,29 @@
           ? '—'
           : (dias < 0 ? `${Math.abs(dias)} dia(s) atrás` : `${dias} dia(s)`);
 
+        // quantidade 0 = esgotado: fica cinza e a promoção (se houver) deixa de aparecer
+        const esgotado = (Number(produto.quantidade) || 0) <= 0;
+        const promo = esgotado ? null : promocaoDoProduto(produto, promocoes);
+        const original = Number(produto.preco) || 0;
+        const precoHtml = promo
+          ? `<span class="preco-riscado">${formatarPreco(original)}</span><span class="preco-promo">${formatarPreco(Math.round(original * (1 - promo.desconto / 100) * 100) / 100)}</span>`
+          : formatarPreco(original);
+        const badge = esgotado
+          ? '<span class="esgotado-badge">ESGOTADO</span>'
+          : (promo ? `<span class="promo-badge">-${promo.desconto}%</span>` : '');
+
         const tr = document.createElement('tr');
+        if(esgotado){
+          tr.classList.add('esgotado');
+          tr.dataset.tip = 'Produto esgotado';
+        } else if(promo){
+          tr.classList.add('promo');
+          tr.dataset.tip = 'Este produto está com promoção';
+        }
         tr.innerHTML = `
-          <td>${escapeHtml(produto.nome)}</td>
+          <td>${escapeHtml(produto.nome)}${badge}</td>
           <td>${produto.quantidade} unid.</td>
+          <td>${precoHtml}</td>
           <td>${formatarData(produto.validade)}</td>
           <td>${diasTexto}</td>
           <td><span class="status-tag ${st.classe}">${st.texto}</span></td>
@@ -1044,6 +1162,30 @@
       return d !== null && d < 0;
     }).length;
   }
+
+  // Mensagem ao passar o mouse sobre um produto em promoção ou esgotado
+  const tooltipPromo = document.getElementById('tooltipPromo');
+  function posicionarTooltip(e){
+    const largura = tooltipPromo.offsetWidth;
+    const x = Math.min(e.clientX + 14, window.innerWidth - largura - 8);
+    tooltipPromo.style.left = Math.max(8, x) + 'px';
+    tooltipPromo.style.top = (e.clientY + 18) + 'px';
+  }
+  estoqueBody.addEventListener('mouseover', (e) => {
+    const tr = e.target.closest('tr[data-tip]');
+    if(!tr) return;
+    tooltipPromo.textContent = tr.dataset.tip;
+    tooltipPromo.style.display = 'block';
+    posicionarTooltip(e);
+  });
+  estoqueBody.addEventListener('mousemove', (e) => {
+    if(e.target.closest('tr[data-tip]')) posicionarTooltip(e);
+  });
+  estoqueBody.addEventListener('mouseout', (e) => {
+    const para = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('tr[data-tip]') : null;
+    if(!para) tooltipPromo.style.display = 'none';
+    else if(para !== e.target.closest('tr[data-tip]')){ tooltipPromo.textContent = para.dataset.tip; }
+  });
 
   function renderSaidas(){
     const saidasHoje = carregarSaidasHoje();
@@ -1069,7 +1211,7 @@
   renderEstoque();
   renderSaidas();
 
-  // Atualiza sozinho se Produtos mudar enquanto esta página está aberta (outra aba)
+  // Atualiza sozinho se Produtos ou Promoção mudarem enquanto esta página está aberta (outra aba)
   // ou se o usuário voltar para cá pelo botão "voltar" do navegador.
   // Uma venda mexe nos dois: baixa a quantidade em Produtos e cria a saída em Vendas.
   function atualizarTudo(){
@@ -1078,7 +1220,7 @@
     renderSaidas();
   }
   window.addEventListener('storage', (e) => {
-    if(e.key === CHAVE_PRODUTOS || e.key === CHAVE_VENDAS || e.key === null) atualizarTudo();
+    if(e.key === CHAVE_PRODUTOS || e.key === CHAVE_VENDAS || e.key === CHAVE_PROMOCOES || e.key === null) atualizarTudo();
   });
   window.addEventListener('pageshow', (e) => {
     if(e.persisted) atualizarTudo();
@@ -1087,13 +1229,307 @@
     if(!document.hidden) atualizarTudo();
   });
 
-  // ===== Exportar CSV para Excel (por enquanto só visual — sem gerar arquivo de verdade ainda) =====
+  // ===== Exportar CSV para Excel: vendas de hoje + venda total do dia =====
   const btnExportar = document.getElementById('btnExportar');
   const exportFeedback = document.getElementById('exportFeedback');
 
+  // Lê todas as vendas registradas (mesma chave usada em Vendas) e fica só com as de hoje
+  function carregarVendasHoje(){
+    let vendas = [];
+    try{
+      const salvo = localStorage.getItem(CHAVE_VENDAS);
+      if(salvo !== null){
+        const lista = JSON.parse(salvo);
+        if(Array.isArray(lista)) vendas = lista;
+      }
+    }catch(e){}
+    const hoje = dataLocal();
+    return vendas.filter(v => v.data === hoje);
+  }
+
+  // Valor arrecadado com um item vendido. Usa o valor gravado na venda; se a venda
+  // não guardou o valor, calcula pelo preço (com promoção ativa) do produto cadastrado.
+  function valorDoItem(item){
+    const quantidade = Number(item.quantidade) || 0;
+    const direto = [item.subtotal, item.total, item.valorTotal, item.valor]
+      .find(v => v !== undefined && v !== null && !isNaN(Number(v)));
+    if(direto !== undefined) return Number(direto);
+
+    const unitario = [item.preco, item.precoUnitario, item.precoUnit]
+      .find(v => v !== undefined && v !== null && !isNaN(Number(v)));
+    if(unitario !== undefined) return Number(unitario) * quantidade;
+
+    const produto = produtos.find(p => (item.produtoId !== undefined && p.id === item.produtoId) || p.nome === item.nome);
+    if(!produto) return 0;
+    const promo = promocaoDoProduto(produto, carregarPromocoes());
+    const preco = promo ? produto.preco * (1 - promo.desconto / 100) : produto.preco;
+    return Math.round(preco * quantidade * 100) / 100;
+  }
+
+  // Número no formato do Excel brasileiro: 24,90
+  function numeroCsv(n){
+    return (Math.round(n * 100) / 100).toFixed(2).replace('.', ',');
+  }
+
+  // Protege campos com ; " ou quebra de linha
+  function campoCsv(valor){
+    const texto = String(valor ?? '');
+    return /[;"\r\n]/.test(texto) ? '"' + texto.replace(/"/g, '""') + '"' : texto;
+  }
+
+  function gerarCsvHoje(){
+    const vendas = carregarVendasHoje();
+    const linhas = [];
+    let totalDia = 0;
+
+    vendas.forEach(venda => {
+      (venda.itens || []).forEach(item => {
+        const valor = valorDoItem(item);
+        totalDia += valor;
+        linhas.push([venda.horario || '', item.nome, Number(item.quantidade) || 0, numeroCsv(valor), '']);
+      });
+    });
+
+    if(linhas.length === 0) return null;
+
+    // última coluna "Venda total": mostra o total do dia na linha final
+    linhas.push(['', 'TOTAL DO DIA', '', '', numeroCsv(totalDia)]);
+
+    const cabecalho = ['Horário', 'Produto', 'Quantidade', 'Valor (R$)', 'Venda total'];
+    // ";" como separador e BOM no início para o Excel em português abrir com acentos corretos
+    const texto = [cabecalho, ...linhas].map(l => l.map(campoCsv).join(';')).join('\r\n');
+    return { conteudo: '\ufeff' + texto, totalDia };
+  }
+
+  function baixarArquivo(nomeArquivo, conteudo){
+    const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nomeArquivo;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   btnExportar.addEventListener('click', () => {
-    exportFeedback.textContent = 'Em breve: isso vai gerar um arquivo CSV com os produtos que saíram hoje, pronto para abrir no Excel.';
+    const resultado = gerarCsvHoje();
+
+    if(!resultado){
+      exportFeedback.textContent = 'Nenhuma venda registrada hoje para exportar.';
+      exportFeedback.className = 'import-feedback bad';
+      return;
+    }
+
+    baixarArquivo('vendas-' + dataLocal() + '.csv', resultado.conteudo);
+    exportFeedback.textContent = 'Arquivo baixado! Venda total de hoje: ' + formatarPreco(resultado.totalDia) + '.';
     exportFeedback.className = 'import-feedback ok';
+  });
+
+  // ===== Importar produtos por CSV =====
+  // Regras: precisa ter exatamente as colunas produto, quantidade, preço e validade;
+  // todas as linhas precisam ter dados válidos (senão nada é importado). Produtos repetidos
+  // (no arquivo ou já existentes no estoque) são pulados e o resto é salvo normalmente.
+  const btnImportar = document.getElementById('btnImportar');
+  const arquivoCsv = document.getElementById('arquivoCsv');
+  const importFeedback = document.getElementById('importFeedback');
+
+  function mostrarImport(texto, ok){
+    importFeedback.textContent = texto;
+    importFeedback.className = 'import-feedback ' + (ok ? 'ok' : 'bad');
+  }
+
+  // minúsculas, sem acento e sem espaços nas pontas (para comparar nomes e cabeçalhos)
+  function normalizar(texto){
+    return String(texto ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  }
+
+  // Lê o CSV respeitando aspas; o separador (; ou ,) é detectado pela primeira linha
+  function lerCsv(texto){
+    texto = texto.replace(/^\ufeff/, '');
+    const primeira = texto.split(/\r?\n/)[0] || '';
+    const sep = (primeira.split(';').length >= primeira.split(',').length) ? ';' : ',';
+
+    const linhas = [];
+    let campo = '', linha = [], aspas = false;
+    for(let i = 0; i < texto.length; i++){
+      const c = texto[i];
+      if(aspas){
+        if(c === '"' && texto[i + 1] === '"'){ campo += '"'; i++; }
+        else if(c === '"'){ aspas = false; }
+        else campo += c;
+      } else if(c === '"'){ aspas = true; }
+      else if(c === sep){ linha.push(campo); campo = ''; }
+      else if(c === '\n' || c === '\r'){
+        if(c === '\r' && texto[i + 1] === '\n') i++;
+        linha.push(campo); campo = '';
+        linhas.push(linha); linha = [];
+      } else campo += c;
+    }
+    if(campo !== '' || linha.length > 0){ linha.push(campo); linhas.push(linha); }
+    // ignora linhas totalmente em branco
+    return linhas.filter(l => l.some(c => c.trim() !== ''));
+  }
+
+  // Aceita 24,90 | 24.90 | 1.234,56 | R$ 24,90
+  function lerPreco(txt){
+    let t = String(txt).replace(/R\$/gi, '').replace(/\s/g, '');
+    if(t === '') return null;
+    if(t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+    if(!/^\d+(\.\d+)?$/.test(t)) return null;
+    const n = Number(t);
+    return n > 0 ? Math.round(n * 100) / 100 : null;
+  }
+
+  // Aceita AAAA-MM-DD ou DD/MM/AAAA e confere se a data existe; devolve AAAA-MM-DD
+  function lerValidade(txt){
+    const t = String(txt).trim();
+    let a, m, d, r;
+    if((r = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))){ a = +r[1]; m = +r[2]; d = +r[3]; }
+    else if((r = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))){ d = +r[1]; m = +r[2]; a = +r[3]; }
+    else return null;
+    const dt = new Date(a, m - 1, d);
+    if(dt.getFullYear() !== a || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+    return a + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  }
+
+  // Valida o CSV inteiro. Devolve { erros: [...] } ou { novos: [...], ignorados: [...] }
+  function validarCsvProdutos(texto){
+    const linhas = lerCsv(texto);
+    if(linhas.length === 0) return { erros: ['O arquivo está vazio.'] };
+
+    const esperado = ['produto', 'quantidade', 'preco', 'validade'];
+    const cab = linhas[0].map(normalizar);
+    const faltando = esperado.filter(c => !cab.includes(c));
+    const sobrando = cab.filter(c => !esperado.includes(c));
+    const repetidas = cab.filter((c, i) => cab.indexOf(c) !== i);
+    if(faltando.length || sobrando.length || repetidas.length){
+      let msg = 'O cabeçalho precisa ter exatamente: produto, quantidade, preço e validade.';
+      if(faltando.length) msg += ' Faltando: ' + faltando.join(', ') + '.';
+      if(sobrando.length) msg += ' Colunas não aceitas: ' + sobrando.join(', ') + '.';
+      if(repetidas.length) msg += ' Colunas repetidas: ' + [...new Set(repetidas)].join(', ') + '.';
+      return { erros: [msg] };
+    }
+    if(linhas.length === 1) return { erros: ['O arquivo tem só o cabeçalho, sem nenhum produto.'] };
+
+    const idx = {};
+    esperado.forEach(c => idx[c] = cab.indexOf(c));
+
+    const erros = [];
+    const novos = [];
+    const ignorados = [];                        // duplicados que serão pulados
+    const nomesNoArquivo = new Map();            // nome normalizado -> linha
+    const nomesNoEstoque = new Set(produtos.map(p => normalizar(p.nome)));
+
+    linhas.slice(1).forEach((l, i) => {
+      const n = i + 2;                           // número da linha no arquivo (cabeçalho = 1)
+      if(l.length !== cab.length){
+        erros.push(`Linha ${n}: quantidade de colunas diferente do cabeçalho.`);
+        return;
+      }
+      const nome = l[idx.produto].trim();
+      const qtdTxt = l[idx.quantidade].trim();
+      const preco = lerPreco(l[idx.preco]);
+      const validade = lerValidade(l[idx.validade]);
+      let ok = true;
+
+      if(!nome){ erros.push(`Linha ${n}: produto em branco.`); ok = false; }
+      if(!/^\d+$/.test(qtdTxt)){ erros.push(`Linha ${n}: quantidade deve ser um número inteiro (0 ou mais).`); ok = false; }
+      if(preco === null){ erros.push(`Linha ${n}: preço inválido (use, por exemplo, 24,90).`); ok = false; }
+      if(validade === null){ erros.push(`Linha ${n}: validade inválida (use DD/MM/AAAA ou AAAA-MM-DD).`); ok = false; }
+
+      let duplicado = false;
+      if(nome){
+        const chave = normalizar(nome);
+        if(nomesNoArquivo.has(chave)){
+          ignorados.push(`Linha ${n}: "${nome}" repetido no arquivo (linha ${nomesNoArquivo.get(chave)}).`);
+          duplicado = true;
+        } else {
+          nomesNoArquivo.set(chave, n);
+          if(nomesNoEstoque.has(chave)){
+            ignorados.push(`Linha ${n}: "${nome}" já existe no estoque.`);
+            duplicado = true;
+          }
+        }
+      }
+      if(ok && !duplicado) novos.push({ nome, quantidade: parseInt(qtdTxt, 10), preco, validade });
+    });
+
+    return erros.length ? { erros } : { novos, ignorados };
+  }
+
+  // Lê o arquivo como UTF-8; se vier com caracteres quebrados (Excel antigo), tenta Windows-1252
+  async function lerArquivoTexto(arquivo){
+    const buffer = await arquivo.arrayBuffer();
+    let texto = new TextDecoder('utf-8').decode(buffer);
+    if(texto.includes('\ufffd')) texto = new TextDecoder('windows-1252').decode(buffer);
+    return texto;
+  }
+
+  btnImportar.addEventListener('click', () => arquivoCsv.click());
+
+  arquivoCsv.addEventListener('change', async () => {
+    const arquivo = arquivoCsv.files[0];
+    arquivoCsv.value = '';                       // permite escolher o mesmo arquivo de novo
+    if(!arquivo) return;
+
+    if(!/\.csv$/i.test(arquivo.name)){
+      mostrarImport('Escolha um arquivo com a extensão .csv.', false);
+      return;
+    }
+
+    let resultado;
+    try{
+      resultado = validarCsvProdutos(await lerArquivoTexto(arquivo));
+    }catch(e){
+      mostrarImport('Não foi possível ler o arquivo.', false);
+      return;
+    }
+
+    if(resultado.erros){
+      const mostrar = resultado.erros.slice(0, 8);
+      const resto = resultado.erros.length - mostrar.length;
+      mostrarImport(
+        'Nada foi importado. Corrija o arquivo e tente de novo:\n' + mostrar.join('\n') +
+        (resto > 0 ? `\n…e mais ${resto} problema(s).` : ''), false);
+      return;
+    }
+
+    const ignorados = resultado.ignorados;
+    const textoIgnorados = () => {
+      const mostrar = ignorados.slice(0, 8);
+      const resto = ignorados.length - mostrar.length;
+      return mostrar.join('\n') + (resto > 0 ? `\n…e mais ${resto}.` : '');
+    };
+
+    if(resultado.novos.length === 0){
+      mostrarImport('Nenhum produto novo para importar. Todos já existiam:\n' + textoIgnorados(), false);
+      return;
+    }
+
+    // adiciona ao estoque e salva (mesma chave da página Produtos)
+    produtos = carregarProdutos();
+    let proximoId = produtos.reduce((m, p) => Math.max(m, Number(p.id) || 0), 0) + 1;
+    resultado.novos.forEach(n => {
+      produtos.push({ id: proximoId++, nome: n.nome, classe: 'Outros', quantidade: n.quantidade, preco: n.preco, validade: n.validade });
+    });
+
+    try{
+      localStorage.setItem(CHAVE_PRODUTOS, JSON.stringify(produtos));
+    }catch(e){
+      produtos = carregarProdutos();
+      mostrarImport('Não foi possível salvar os produtos neste navegador.', false);
+      return;
+    }
+
+    renderEstoque();   // já calcula "Dias até vencer" e "Situação" de cada produto novo
+    const qtd = resultado.novos.length;
+    let msg = `${qtd} produto${qtd > 1 ? 's' : ''} importado${qtd > 1 ? 's' : ''} com sucesso!`;
+    if(ignorados.length > 0){
+      msg += `\n${ignorados.length} pulado${ignorados.length > 1 ? 's' : ''} por já existir${ignorados.length > 1 ? 'em' : ''}:\n` + textoIgnorados();
+    }
+    mostrarImport(msg, true);
   });
 </script>
 

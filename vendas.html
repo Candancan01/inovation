@@ -1018,6 +1018,43 @@
     return PRODUTOS_PADRAO.map(p => ({ ...p }));
   }
 
+  // ===== Promoções: vêm da página Promoção (mesma regra usada no Estoque) =====
+  // Produto com promoção ativa (não expirada) é vendido pelo preço promocional.
+  // Se houver mais de uma, vale o maior desconto.
+  const CHAVE_PROMOCOES = 'promocoesMercadinho';
+
+  function carregarPromocoes(){
+    try{
+      const salvo = localStorage.getItem(CHAVE_PROMOCOES);
+      if(salvo !== null){
+        const lista = JSON.parse(salvo);
+        if(Array.isArray(lista)) return lista;
+      }
+    }catch(e){}
+    return [];
+  }
+
+  function promocaoAtiva(promo){
+    if(!promo.validade) return true;
+    const hoje = new Date();
+    hoje.setHours(0,0,0,0);
+    return new Date(promo.validade + 'T00:00:00') >= hoje;
+  }
+
+  // preço unitário que vale hoje para o produto: { preco, original, desconto }
+  function precoDoProduto(produto){
+    const original = Number(produto.preco) || 0;
+    const promo = carregarPromocoes()
+      .filter(pr => pr.produtoId === produto.id && promocaoAtiva(pr))
+      .sort((a, b) => b.desconto - a.desconto)[0];
+    if(!promo) return { preco: original, original, desconto: 0 };
+    return {
+      preco: Math.round(original * (1 - promo.desconto / 100) * 100) / 100,
+      original,
+      desconto: promo.desconto,
+    };
+  }
+
   // evita que um nome com < > & quebre a tela
   function escapeHtml(texto){
     return String(texto).replace(/[&<>"']/g, c => (
@@ -1235,11 +1272,17 @@
     ).join('');
 
     // só aparecem produtos que estão no estoque (lista cadastrada em Produtos)
-    const nomesEstoque = [...new Set(carregarProdutos().map(p => p.nome))];
+    // produto esgotado (0 unidades) aparece travado e não pode ser escolhido
+    // (exceção: ao alterar uma venda, as unidades dela voltam a contar como disponíveis)
+    const porNomeEstoque = new Map();
+    carregarProdutos().forEach(p => { if(!porNomeEstoque.has(p.nome)) porNomeEstoque.set(p.nome, p); });
+    const nomesEstoque = [...porNomeEstoque.keys()];
     let opcoesProduto = '<option value="">Selecione um produto</option>' +
-      nomesEstoque.map(nome =>
-        `<option value="${escapeHtml(nome)}" ${dados.nome === nome ? 'selected' : ''}>${escapeHtml(nome)}</option>`
-      ).join('');
+      nomesEstoque.map(nome => {
+        const disponivel = (Number(porNomeEstoque.get(nome).quantidade) || 0) + quantidadeDaVendaOriginal(nome);
+        const esgotado = disponivel <= 0;
+        return `<option value="${escapeHtml(nome)}" ${dados.nome === nome ? 'selected' : ''} ${esgotado && dados.nome !== nome ? 'disabled' : ''}>${escapeHtml(nome)}${esgotado ? ' (esgotado)' : ''}</option>`;
+      }).join('');
     // venda antiga com produto que saiu do estoque: o nome aparece, mas salvar fica bloqueado
     if(dados.nome && !nomesEstoque.includes(dados.nome)){
       opcoesProduto += `<option value="${escapeHtml(dados.nome)}" selected>${escapeHtml(dados.nome)} (fora do estoque)</option>`;
@@ -1316,8 +1359,10 @@
     } else {
       const devolvida = quantidadeDaVendaOriginal(nome);
       const disponivel = (Number(produto.quantidade) || 0) + devolvida;
-      const preco = Number(produto.preco) || 0;
-      hintPreco.textContent = `Preço unitário: ${formatarMoeda(preco)}`;
+      const info = precoDoProduto(produto);
+      hintPreco.textContent = info.desconto > 0
+        ? `Preço unitário: ${formatarMoeda(info.preco)} (promoção -${info.desconto}%, de ${formatarMoeda(info.original)})`
+        : `Preço unitário: ${formatarMoeda(info.preco)}`;
       if(quantidade > disponivel){
         hintEstoque.textContent = disponivel === 0 ? 'Sem estoque deste produto.' : `Só há ${disponivel} unid. em estoque.`;
         hintEstoque.classList.add('bad');
@@ -1328,7 +1373,7 @@
 
     if(recalcularValor){
       if(produto && quantidade > 0){
-        const total = Math.round((Number(produto.preco) || 0) * quantidade * 100) / 100;
+        const total = Math.round(precoDoProduto(produto).preco * quantidade * 100) / 100;
         campoValor.value = total.toFixed(2);
       } else {
         campoValor.value = '';

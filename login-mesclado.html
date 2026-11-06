@@ -546,6 +546,8 @@
           if (resposta.ok) {
               localStorage.setItem('usuarioTipo', dados.funcao);
               localStorage.setItem('usuarioNome', dados.nome || '');
+              localStorage.setItem('usuarioEmail', email.trim());   // o Perfil lê estes dados
+              localStorage.setItem('usuarioLoja', dados.loja || '');   // nome_loja vindo do Xano
 
               window.location.href = 'inicio.html';
           } else {

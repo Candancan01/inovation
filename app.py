@@ -95,7 +95,8 @@ def login():
     return jsonify({
         "mensagem": "Login realizado com sucesso",
         "funcao": comerciante.get("funcao"),
-        "nome": comerciante.get("nome")
+        "nome": comerciante.get("nome"),
+        "loja": comerciante.get("nome_loja")
     })
 
 
